@@ -94,7 +94,7 @@ These additional checks require an Android Studio emulator or device and have no
 1. **Docking:** Open Chrome's address field with BarKey selected. Confirm the keyboard touches the bottom of the available IME area and no webpage strip appears beneath its footer.
 2. **Resize upward:** Drag the top handle upward. Confirm only the keyboard top moves, the bottom stays fixed, and the live preview grows into the added height.
 3. **Resize downward:** Drag down. Confirm the preview shrinks first and editing controls and footer stay accessible.
-4. **Signature:** At default tablet height, confirm the exact text `Barkey Developed by Amanda Hernow, 2026 version 1.0` is centered below Switch Keyboard / Hide Keyboard.
+4. **Signature:** At default tablet height, confirm the exact text `BarKey · Developed by Amanda Hernow · 2026 · Version 1.0` is centred below Switch Keyboard / Hide Keyboard.
 5. **Chrome Tab without NEXT:** Focus a Chrome field without advertised Next navigation and press Tab. Confirm no key injection, submission, focus change or BarKey dismissal.
 6. **Native form with NEXT:** Focus the first of two native fields advertising NEXT. Confirm BarKey requests NEXT once and the host may move focus to field two.
 7. **DONE field:** Focus a field advertising DONE without NEXT and press Tab. Confirm no Done action or injected key event.

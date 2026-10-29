@@ -1,35 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="About BarKey, a free offline barcode and QR scanner keyboard for Android, its privacy, developer, and related projects.">
   <meta name="author" content="Amanda Hernow">
-  <meta name="theme-color" content="#f4f6fa">
+  <meta name="theme-color" content="#F3F8F8">
+  <meta name="theme-color" content="#101B1E" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <title>About BarKey | Amanda Hernow</title>
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #f4f6fa;
-      --surface: #fff;
-      --ink: #172033;
-      --muted: #536078;
-      --line: #dce2ec;
-      --accent: #2866a8;
-      --accent-strong: #1d4f86;
-      --accent-rgb: 40, 102, 168;
-      --shadow: 0 12px 32px rgba(24, 36, 60, .07), 0 2px 6px rgba(24, 36, 60, .04);
+      --bg: #F3F8F8;
+      --surface: #FFFFFF;
+      --ink: #17282C;
+      --muted: #50666A;
+      --line: #D9E5E6;
+      --accent: #0B777C;
+      --accent-strong: #075D63;
+      --accent-rgb: 11, 119, 124;
+      --shadow: 0 12px 32px rgba(23, 40, 44, .07), 0 2px 6px rgba(23, 40, 44, .04);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0c121c;
-        --surface: #141d2a;
-        --ink: #e8edf5;
-        --muted: #b3bfd0;
-        --line: #2c3a4d;
-        --accent: #91c4f8;
-        --accent-strong: #b4d9ff;
-        --accent-rgb: 112, 174, 235;
+        --bg: #101B1E;
+        --surface: #192A2D;
+        --ink: #E8F1F2;
+        --muted: #ADC2C4;
+        --line: #344A4E;
+        --accent: #58B8B5;
+        --accent-strong: #83C9C7;
+        --accent-rgb: 88, 184, 181;
         --shadow: 0 16px 38px rgba(0, 0, 0, .22), 0 2px 8px rgba(0, 0, 0, .16);
       }
     }
@@ -45,7 +50,7 @@
     .nav-links, .footer-nav, .project-links { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
     .nav-links a, .footer-nav a { display: inline-flex; align-items: center; min-height: 40px; padding: 7px 12px; border: 1px solid transparent; border-radius: 999px; color: var(--muted); font-size: .88rem; font-weight: 600; text-decoration: none; }
     .nav-links a:hover, .footer-nav a:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
-    .hero { border-block: 1px solid var(--line); background: linear-gradient(125deg, rgba(var(--accent-rgb), .09), transparent 48%), radial-gradient(ellipse at 85% 5%, rgba(64, 157, 145, .08), transparent 38%), var(--bg); }
+    .hero { border-block: 1px solid var(--line); background: linear-gradient(125deg, rgba(var(--accent-rgb), .035), transparent 48%), radial-gradient(ellipse at 85% 5%, rgba(var(--accent-rgb), .02), transparent 38%), var(--bg); }
     .hero-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(100% - 40px, 920px); margin: auto; padding: clamp(42px, 6vw, 68px) 0 clamp(46px, 6vw, 72px); }
     .hero-copy { max-width: 760px; text-align: center; }
     .eyebrow { display: inline-block; margin-bottom: 12px; color: var(--accent); font-size: .76rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
@@ -58,7 +63,7 @@
     .button-link.primary:hover, .project-links a.primary:hover { border-color: var(--accent-strong); background: var(--accent-strong); color: #fff; }
     .hero-facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
     .hero-facts span { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.45); color: var(--muted); font-size: .78rem; font-weight: 600; }
-    @media (prefers-color-scheme: dark) { .hero-facts span { background: rgba(255,255,255,.035); } .button-link.primary, .project-links a.primary { color: #101722; } }
+    @media (prefers-color-scheme: dark) { .hero-facts span { background: rgba(255,255,255,.035); } .button-link.primary, .button-link.primary:hover, .project-links a.primary, .project-links a.primary:hover { color: #101B1E; } }
     .hero-portrait { display: flex; flex-direction: column; align-items: center; width: 100%; margin: 0 0 4px; }
     .hero-photo-frame { display: grid; width: 156px; height: 156px; place-items: center; overflow: hidden; border: 4px solid var(--surface); border-radius: 50%; background: var(--surface); box-shadow: 0 4px 24px rgba(0, 0, 0, .16), 0 0 0 1px var(--line); }
     .hero-photo { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center; }
@@ -86,7 +91,7 @@
     .projects-heading h2 { margin: 0 0 5px; font-size: clamp(1.3rem, 2vw, 1.55rem); }
     .projects-heading p { margin: 0; color: var(--muted); font-size: .92rem; }
     .project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-    .project-card { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 13px; padding: clamp(17px, 2.6vw, 24px); border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 3px 12px rgba(18, 30, 52, .045); }
+    .project-card { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 13px; padding: clamp(17px, 2.6vw, 24px); border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 3px 12px rgba(23, 40, 44, .045); }
     .project-card-heading { display: flex; min-width: 0; align-items: center; gap: 13px; }
     .project-icon-link { display: grid; width: 66px; height: 66px; flex: none; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
     .project-icon { display: block; width: 100%; height: 100%; padding: 4px; object-fit: contain; }
@@ -100,7 +105,7 @@
     .support-copy { max-width: 540px; }
     .support-copy > p { color: var(--muted); }
     .support-visual { display: flex; width: 190px; flex-direction: column; align-items: center; gap: 11px; }
-    .support-qr { display: block; width: min(164px, 100%); height: auto; padding: 8px; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: 0 4px 16px rgba(20, 30, 50, .09); }
+    .support-qr { display: block; width: min(164px, 100%); height: auto; padding: 8px; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: 0 4px 16px rgba(16, 27, 30, .09); }
     .support-visual .button-link { width: 100%; text-align: center; }
     .small { font-size: .83rem; }
     footer { padding: 20px 22px 30px; color: var(--muted); font-size: .84rem; text-align: center; }
@@ -163,7 +168,7 @@
           <li>One-level guarded Undo, repeating Backspace, Space, Left, Right, Tab and Enter controls.</li>
           <li>Docked, resizable keyboard with portrait and landscape layouts and light and dark appearance.</li>
         </ul>
-        <p>Supported formats are configured in the app. Camera behavior and editor actions can vary by device and the application containing the text field.</p>
+        <p>Supported formats are configured in the app. Camera behaviour and editor actions can vary by device and the application containing the text field.</p>
       </section>
       <section class="card" aria-labelledby="why"><span class="section-kicker">The thinking behind it</span><h2 id="why">Why I built BarKey</h2>
         <p>BarKey started with a simple idea. I wanted to scan a barcode and have the result go straight into whatever text field I was already using, without switching between applications or copying and pasting.</p>

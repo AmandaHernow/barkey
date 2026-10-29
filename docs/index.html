@@ -1,34 +1,39 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="BarKey is a free, open-source Android keyboard for scanning barcodes and QR codes directly into the field you are using.">
-  <meta name="theme-color" content="#f4f6fa">
+  <meta name="theme-color" content="#F3F8F8">
+  <meta name="theme-color" content="#101B1E" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <title>BarKey — Scan into the field you’re using</title>
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #f4f6fa;
-      --surface: #fff;
-      --ink: #172033;
-      --muted: #536078;
-      --line: #dce2ec;
-      --accent: #2866a8;
-      --accent-strong: #1d4f86;
-      --accent-rgb: 40, 102, 168;
-      --shadow: 0 12px 32px rgba(24, 36, 60, .07), 0 2px 6px rgba(24, 36, 60, .04);
+      --bg: #F3F8F8;
+      --surface: #FFFFFF;
+      --ink: #17282C;
+      --muted: #50666A;
+      --line: #D9E5E6;
+      --accent: #0B777C;
+      --accent-strong: #075D63;
+      --accent-rgb: 11, 119, 124;
+      --shadow: 0 12px 32px rgba(23, 40, 44, .07), 0 2px 6px rgba(23, 40, 44, .04);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0c121c;
-        --surface: #141d2a;
-        --ink: #e8edf5;
-        --muted: #b3bfd0;
-        --line: #2c3a4d;
-        --accent: #91c4f8;
-        --accent-strong: #b4d9ff;
-        --accent-rgb: 112, 174, 235;
+        --bg: #101B1E;
+        --surface: #192A2D;
+        --ink: #E8F1F2;
+        --muted: #ADC2C4;
+        --line: #344A4E;
+        --accent: #58B8B5;
+        --accent-strong: #83C9C7;
+        --accent-rgb: 88, 184, 181;
         --shadow: 0 16px 38px rgba(0, 0, 0, .22), 0 2px 8px rgba(0, 0, 0, .16);
       }
     }
@@ -71,8 +76,8 @@
     .nav-links a:hover, .footer-nav a:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
     .hero {
       border-block: 1px solid var(--line);
-      background: linear-gradient(125deg, rgba(var(--accent-rgb), .09), transparent 48%),
-        radial-gradient(ellipse at 85% 5%, rgba(64, 157, 145, .08), transparent 38%), var(--bg);
+      background: linear-gradient(125deg, rgba(var(--accent-rgb), .035), transparent 48%),
+        radial-gradient(ellipse at 85% 5%, rgba(var(--accent-rgb), .02), transparent 38%), var(--bg);
     }
     .hero-inner { display: grid; justify-items: center; gap: 20px; width: min(100% - 40px, 920px); margin: auto; padding: clamp(42px, 6vw, 68px) 0 clamp(46px, 6vw, 72px); }
     .hero-copy { max-width: 760px; text-align: center; }
@@ -99,7 +104,7 @@
     .button-link.primary:hover { border-color: var(--accent-strong); background: var(--accent-strong); color: #fff; }
     .hero-facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
     .hero-facts span { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.45); color: var(--muted); font-size: .78rem; font-weight: 600; }
-    @media (prefers-color-scheme: dark) { .hero-facts span { background: rgba(255,255,255,.035); } .button-link.primary { color: #101722; } }
+    @media (prefers-color-scheme: dark) { .hero-facts span { background: rgba(255,255,255,.035); } .button-link.primary, .button-link.primary:hover { color: #101B1E; } }
     .content { width: min(100% - 40px, 900px); margin: 0 auto; padding: clamp(28px, 5vw, 56px) 0 64px; }
     .card { padding: clamp(21px, 3.4vw, 32px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
     .card h2 { margin: 0 0 12px; font-size: clamp(1.2rem, 2vw, 1.42rem); line-height: 1.28; letter-spacing: -.02em; }

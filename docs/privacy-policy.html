@@ -1,33 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Privacy Policy for the personal Android BarKey barcode scanner keyboard.">
   <meta name="author" content="Amanda Hernow">
-  <meta name="theme-color" content="#172235">
+  <meta name="theme-color" content="#F3F8F8">
+  <meta name="theme-color" content="#101B1E" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <title>Privacy Policy | BarKey for Android</title>
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #f4f6fa;
-      --surface: #fff;
-      --ink: #172033;
-      --muted: #536078;
-      --line: #dce2ec;
-      --accent: #2866a8;
-      --accent-rgb: 40, 102, 168;
-      --shadow: 0 12px 32px rgba(24, 36, 60, .07), 0 2px 6px rgba(24, 36, 60, .04);
+      --bg: #F3F8F8;
+      --surface: #FFFFFF;
+      --ink: #17282C;
+      --muted: #50666A;
+      --line: #D9E5E6;
+      --accent: #0B777C;
+      --accent-strong: #075D63;
+      --accent-rgb: 11, 119, 124;
+      --shadow: 0 12px 32px rgba(23, 40, 44, .07), 0 2px 6px rgba(23, 40, 44, .04);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0c121c;
-        --surface: #141d2a;
-        --ink: #e8edf5;
-        --muted: #b3bfd0;
-        --line: #2c3a4d;
-        --accent: #91c4f8;
-        --accent-rgb: 112, 174, 235;
+        --bg: #101B1E;
+        --surface: #192A2D;
+        --ink: #E8F1F2;
+        --muted: #ADC2C4;
+        --line: #344A4E;
+        --accent: #58B8B5;
+        --accent-strong: #83C9C7;
+        --accent-rgb: 88, 184, 181;
         --shadow: 0 16px 38px rgba(0, 0, 0, .22), 0 2px 8px rgba(0, 0, 0, .16);
       }
     }
@@ -35,7 +42,7 @@
     html { scroll-behavior: smooth; }
     body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
     a { color: var(--accent); text-underline-offset: 3px; }
-    a:hover { color: var(--accent); }
+    a:hover { color: var(--accent-strong); }
     a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
     .site-nav { display: flex; justify-content: space-between; align-items: center; gap: 18px; max-width: 1120px; margin: auto; padding: 12px clamp(18px, 4vw, 40px); }
     .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: .92rem; font-weight: 750; text-decoration: none; }
@@ -43,7 +50,7 @@
     .nav-links, .footer-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
     .nav-links a, .footer-nav a { display: inline-flex; align-items: center; min-height: 40px; padding: 7px 12px; border: 1px solid transparent; border-radius: 999px; color: var(--muted); font-size: .88rem; font-weight: 600; text-decoration: none; }
     .nav-links a:hover, .footer-nav a:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
-    header { border-block: 1px solid var(--line); background: linear-gradient(125deg, rgba(var(--accent-rgb), .09), transparent 48%), radial-gradient(ellipse at 85% 5%, rgba(64, 157, 145, .08), transparent 38%), var(--bg); }
+    header { border-block: 1px solid var(--line); background: linear-gradient(125deg, rgba(var(--accent-rgb), .035), transparent 48%), radial-gradient(ellipse at 85% 5%, rgba(var(--accent-rgb), .02), transparent 38%), var(--bg); }
     .hero { width: min(100% - 40px, 920px); margin: auto; padding: clamp(38px, 5vw, 58px) 0; }
     .eyebrow { color: var(--accent); font-size: .76rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
     h1 { margin: 10px 0 12px; font-size: clamp(2.3rem, 5vw, 4.1rem); line-height: 1.08; letter-spacing: -.045em; }
@@ -76,7 +83,7 @@
   <main>
     <section class="intro"><p>This policy describes the personal Android version of BarKey, package <code>net.hernow.barkey</code>. BarKey is a camera-based keyboard that scans barcodes and inserts their decoded text into the active field. It does not describe other applications or any separately maintained enterprise build.</p></section>
     <section class="policy-section" aria-labelledby="camera"><h2 id="camera">Camera access and scanning</h2>
-      <p>BarKey requests Android Camera permission to display the rear-camera preview and scan codes. AndroidX CameraX supplies camera capture and preview. Camera frames are analyzed locally on the device with ZXing-C++ Android 3.1.1 as the primary barcode decoder and ZXing Core 3.5.4 as the Java fallback. These are bundled software libraries, not hosted services. BarKey does not upload camera frames or decoded barcode contents.</p>
+      <p>BarKey requests Android Camera permission to display the rear-camera preview and scan codes. AndroidX CameraX supplies camera capture and preview. Camera frames are analysed locally on the device with ZXing-C++ Android 3.1.1 as the primary barcode decoder and ZXing Core 3.5.4 as the Java fallback. These are bundled software libraries, not hosted services. BarKey does not upload camera frames or decoded barcode contents.</p>
       <p>Camera use starts while the scanner keyboard is active and stops when the keyboard is hidden, input ends, or the in-keyboard Help panel is opened. You can deny or revoke Camera permission in Android settings; scanning then remains unavailable until permission is granted.</p>
     </section>
     <section class="policy-section" aria-labelledby="libraries"><h2 id="libraries">Third-party libraries and local processing</h2>
@@ -94,7 +101,7 @@
         <li>Guarded Undo may retain the latest BarKey insertion and bounded surrounding cursor context in memory while it remains safely undoable.</li>
         <li>The duplicate-suppression value is cleared when the input session ends. Undo context is cleared when the input session ends, the keyboard is hidden or switched away from, or relevant editor context changes. BarKey has no permanent barcode history and does not write scan values to logs or persistent app storage.</li>
       </ul>
-      <p>BarKey stores a single camera-permission-flow setting in app-private preferences; it does not store scanned values there. Android backup is disabled in the app configuration, with app storage excluded from cloud backup and device transfer. Text inserted by BarKey becomes part of the destination field controlled by the app you are using. That app may store or transmit the text according to its own behavior and policy.</p>
+      <p>BarKey stores a single camera-permission-flow setting in app-private preferences; it does not store scanned values there. Android backup is disabled in the app configuration, with app storage excluded from cloud backup and device transfer. Text inserted by BarKey becomes part of the destination field controlled by the app you are using. That app may store or transmit the text according to its own behaviour and policy.</p>
     </section>
     <section class="policy-section" aria-labelledby="collection"><h2 id="collection">Information we collect</h2>
       <p>BarKey does not require an account or login and contains no analytics, telemetry, advertising, advertising identifiers, or tracking SDKs. It does not collect or upload barcode values, camera frames, or editor text. The app does not include crash-reporting or analytics services.</p>
