@@ -91,7 +91,7 @@ Android `InputConnection` support varies among native fields, Chrome forms and W
 
 ## Android compatibility
 
-The current app configuration is **minimum SDK 24**, **target SDK 37** and **compile SDK 37**. These values describe the source configuration, not a guarantee that every device running those API levels has been tested. The project owner reports verification of camera scanning, barcode insertion, Undo, Backspace repetition and keyboard layout on a physical Android tablet; the model and OS version have not been recorded in this repository. The launcher guide and keyboard support phone and tablet configurations in portrait and landscape and follow Android's system light/dark appearance. Additional device and host-app testing remains outstanding. The configured AGP version is 9.4.1 while the Kotlin Gradle Plugin compatibility table currently lists full support through AGP 9.3.1 for KGP 2.4.21. Validate Gradle sync/build in the stated Android Studio environment and reconcile versions if the toolchain reports incompatibility; this migration does not change dependencies or build-tool versions.
+The current app configuration is **minimum SDK 24**, **target SDK 37** and **compile SDK 37**. These values describe the source configuration, not a guarantee that every device running those API levels has been tested. The project owner reports verification of camera scanning, barcode insertion, Undo, Backspace repetition and keyboard layout on a physical Android tablet; the model and OS version have not been recorded in this repository. The launcher guide and keyboard support phone and tablet configurations in portrait and landscape and follow Android's system light/dark appearance. Additional device and host-app testing remains outstanding. The project uses Android Gradle Plugin 9.5.0 and Gradle 9.8.2 with Kotlin Gradle Plugin 2.4.21. Gradle 9.8.2 meets AGP 9.5.0's minimum Gradle requirement of 9.6.0. However, Kotlin's [published full-support range](https://kotlinlang.org/docs/gradle-configure-project.html) for KGP 2.4.21 currently ends at Gradle 9.7.0 and AGP 9.3.1, so the selected versions are outside that range. Kotlin says later Gradle and AGP releases may still work, but can produce deprecation warnings or have features that are not fully supported. Run the local build and tests after toolchain upgrades and review compatibility warnings.
 
 The IME requests a docked window and disables fullscreen extract mode. Its measured minimum includes the handle, essential controls, footer and a small preview. The user-resizable maximum targets 75% of the display area above the top system inset; the keyboard window retains bottom gravity and a zero Y offset. The IME window extends to its platform-defined bottom boundary while root padding reserves the navigation inset for keyboard content, so that inset is counted once. On exceptionally short displays, the preview shrinks first; if the display still cannot fit all controls, the controls area becomes scrollable with its scrollbar visible while the footer remains visible. BarKey cannot dictate how a third-party host resizes or pans its form above an IME. Host soft-input handling can affect what remains visible. Camera availability in an Android Studio emulator depends on its virtual camera configuration. A virtual rear camera may be absent or behave differently from physical hardware; additional devices and Lenovo-specific behaviour still need validation. Emulator success does not validate Intune policy.
 
@@ -120,8 +120,8 @@ The checked-in project currently specifies:
 
 | Component | Version/configuration |
 | --- | --- |
-| Android Gradle Plugin | 9.4.1 |
-| Gradle wrapper | 9.7.0 |
+| Android Gradle Plugin | 9.5.0 |
+| Gradle wrapper | 9.8.2 |
 | Kotlin Gradle Plugin | 2.4.21 |
 | Gradle JDK | 21 (selected by the checked-in Gradle daemon JVM configuration) |
 | Java/Kotlin bytecode target | 17 |
@@ -134,7 +134,7 @@ The checked-in project currently specifies:
 | Guava Android | 33.7.2-android |
 | JUnit | 4.13.2 (test dependency) |
 
-Use an Android Studio version that supports AGP 9.4.1 (the development environment for this project is Android Studio Rabbit 1). Install the required Android SDK platform and Build Tools in SDK Manager, select JDK 21 for Gradle, open the repository root, and allow Android Studio to sync the project. Do not commit machine-specific `local.properties` or signing credentials.
+Use an Android Studio version that supports AGP 9.5.0. Install the required Android SDK platform and Build Tools in SDK Manager, select JDK 21 for Gradle, open the repository root, and allow Android Studio to sync the project. Because the current AGP and Gradle versions are newer than the Kotlin plugin's published full-support range, verify sync and builds in the local environment and review compatibility warnings. Do not commit machine-specific `local.properties` or signing credentials.
 
 On Windows, build a development APK from PowerShell in the repository root:
 
