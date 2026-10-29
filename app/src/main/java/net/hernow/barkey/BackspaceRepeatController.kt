@@ -17,13 +17,20 @@ internal class BackspaceRepeatController(
     /** Performs the initial tap immediately, then schedules repeats after the platform timeout. */
     fun press(repeat: () -> Boolean): Boolean {
         stop()
-        if (!repeat()) return false
         val task = object : Runnable {
             override fun run() {
-                if (repeat()) scheduler.postDelayed(this, intervalMillis) else repeatTask = null
+                if (repeatTask !== this) return
+                val shouldRepeat = repeat()
+                if (repeatTask !== this) return
+                if (shouldRepeat) scheduler.postDelayed(this, intervalMillis) else repeatTask = null
             }
         }
         repeatTask = task
+        if (!repeat()) {
+            if (repeatTask === task) repeatTask = null
+            return false
+        }
+        if (repeatTask !== task) return true
         scheduler.postDelayed(task, timeoutMillis)
         return true
     }

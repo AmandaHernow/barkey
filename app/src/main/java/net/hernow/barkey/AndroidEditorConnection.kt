@@ -105,11 +105,45 @@ internal class AndroidEditorConnection(
         val before = inputConnection.getTextBeforeCursor(beforeLength, 0)?.toString() ?: return null
         val after = inputConnection.getTextAfterCursor(afterLength, 0)?.toString() ?: return null
         if (before.length > beforeLength || after.length > afterLength) return null
-        val selected = inputConnection.getSelectedText(0)?.toString()
-        if (!selected.isNullOrEmpty()) {
-            return EditorCursorSnapshot(null, null, 0, selected.length, null)
+        // A null selected-text result can mean either no selection or an unavailable query.
+        // Use extracted selection offsets as a second source; otherwise keep the snapshot unknown.
+        val selected = try {
+            inputConnection.getSelectedText(0)
+        } catch (_: RuntimeException) {
+            null
         }
-        return EditorCursorSnapshot(before, after, 0, 0, null)
+        val extractedSelection = if (selected == null) {
+            try {
+                extractedSelectionCollapsed()
+            } catch (_: RuntimeException) {
+                null
+            }
+        } else null
+        val selectionCollapsed = selected?.let { it.isEmpty() } ?: extractedSelection
+        if (selectionCollapsed == false) return EditorCursorSnapshot(null, null, 0, 1, null)
+        return EditorCursorSnapshot(
+            textBeforeCursor = before,
+            textAfterCursor = after,
+            selectionStart = 0,
+            selectionEnd = 0,
+            absoluteCursorPosition = null,
+            selectionIsKnown = selectionCollapsed != null,
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun extractedSelectionCollapsed(): Boolean? {
+        val request = ExtractedTextRequest().apply {
+            token = 0
+            hintMaxChars = SELECTION_HINT_CHARS
+            hintMaxLines = 0
+        }
+        val extracted = inputConnection.getExtractedText(request, 0) ?: return null
+        val textLength = extracted.text?.length ?: return null
+        val start = extracted.selectionStart
+        val end = extracted.selectionEnd
+        if (start < 0 || end < 0 || start > textLength || end > textLength) return null
+        return start == end
     }
 
     private inline fun attemptSnapshot(query: () -> EditorCursorSnapshot?): EditorCursorSnapshot? = try {
@@ -120,5 +154,6 @@ internal class AndroidEditorConnection(
 
     private companion object {
         const val MAX_LEGACY_CONTEXT_CHARS = 8_192
+        const val SELECTION_HINT_CHARS = 64
     }
 }

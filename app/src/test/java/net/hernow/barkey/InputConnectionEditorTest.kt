@@ -2,6 +2,7 @@ package net.hernow.barkey
 
 import android.text.InputType
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.InputConnection
 import java.lang.reflect.Proxy
 import org.junit.Assert.assertEquals
@@ -17,6 +18,15 @@ class InputConnectionEditorTest {
         val connection = FakeEditorConnection()
         assertTrue(editor.commitScan(connection, 1L, "ABC123", true))
         assertEquals("ABC123", connection.value())
+        assertTrue(editor.undo(connection, 1L))
+        assertEquals("", connection.value())
+    }
+
+    @Test fun scanIsUndoableWhenFinishComposingReturnsFalseButInsertionVerifies() {
+        val connection = FakeEditorConnection().apply { finishComposingResult = false }
+        assertTrue(editor.commitScan(connection, 1L, "123456789", true))
+        assertEquals("123456789", connection.value())
+        assertTrue(editor.canUndo(connection, 1L))
         assertTrue(editor.undo(connection, 1L))
         assertEquals("", connection.value())
     }
@@ -63,18 +73,27 @@ class InputConnectionEditorTest {
 
     @Test fun emptyFieldBackspaceDoesNotDelete() {
         val connection = FakeEditorConnection()
-        assertTrue(editor.backspace(connection))
+        assertEquals(BackspaceResult.NO_OP, editor.backspace(connection))
         assertEquals("", connection.value())
     }
 
     @Test fun backspaceDeletesSelectionAndWholeUnicodeCodePoint() {
         val selected = FakeEditorConnection("abcdef", selectionStart = 2, selectionEnd = 4)
-        assertTrue(editor.backspace(selected))
+        assertEquals(BackspaceResult.DELETED, editor.backspace(selected))
         assertEquals("abef", selected.value())
 
         val unicode = FakeEditorConnection("A📦")
-        assertTrue(editor.backspace(unicode))
+        assertEquals(BackspaceResult.DELETED, editor.backspace(unicode))
         assertEquals("A", unicode.value())
+    }
+
+    @Test fun backspaceDeletionInvalidatesScanUndo() {
+        val connection = FakeEditorConnection()
+        assertTrue(editor.commitScan(connection, 1L, "CODE", true))
+        assertTrue(editor.canUndo(connection, 1L))
+        assertEquals(BackspaceResult.DELETED, editor.backspace(connection))
+        assertEquals("COD", connection.value())
+        assertFalse(editor.canUndo(connection, 1L))
     }
 
     @Test fun insertionWithTextOnBothSidesIsUndoableOnlyAtOriginalCursor() {
@@ -112,6 +131,7 @@ class InputConnectionEditorTest {
         assertEquals("leftCODE", snapshot?.textBeforeCursor)
         assertEquals("-right", snapshot?.textAfterCursor)
         assertNull(snapshot?.absoluteCursorPosition)
+        assertFalse(snapshot?.selectionIsKnown ?: true)
     }
 
     @Test fun unsupportedOrThrowingSnapshotMethodsStillUseAvailableFallbacks() {
@@ -122,7 +142,30 @@ class InputConnectionEditorTest {
     }
 
     @Test fun scanUndoWorksWithOnlyBeforeAndAfterCursorFallback() {
-        val connection = beforeAfterEditorConnection("left-right", cursor = 4)
+        val connection = beforeAfterEditorConnection("left-right", cursor = 4, selectedText = "")
+        val editorConnection = AndroidEditorConnection(connection, 31)
+        assertTrue(editor.commitScan(editorConnection, 7L, "123456789", true))
+        assertTrue(editor.canUndo(editorConnection, 7L))
+        assertTrue(editor.undo(editorConnection, 7L))
+        assertEquals("left-right", connection.toString())
+    }
+
+    @Test fun fallbackWithUnknownSelectionCannotCreateOrExecuteUndo() {
+        val connection = beforeAfterEditorConnection("left-right", cursor = 4, selectedText = null)
+        val editorConnection = AndroidEditorConnection(connection, 31)
+        assertTrue(editor.commitScan(editorConnection, 7L, "123456789", true))
+        assertFalse(editor.canUndo(editorConnection, 7L))
+        assertFalse(editor.undo(editorConnection, 7L))
+        assertEquals("left123456789-right", connection.toString())
+    }
+
+    @Test fun fallbackCanConfirmCollapsedSelectionFromExtractedTextWhenSelectedTextIsNull() {
+        val connection = beforeAfterEditorConnection(
+            "left-right",
+            cursor = 4,
+            selectedText = null,
+            extractedSelectionAvailable = true,
+        )
         val editorConnection = AndroidEditorConnection(connection, 31)
         assertTrue(editor.commitScan(editorConnection, 7L, "123456789", true))
         assertTrue(editor.canUndo(editorConnection, 7L))
@@ -360,7 +403,12 @@ class InputConnectionEditorTest {
         }
     } as InputConnection
 
-    private fun beforeAfterEditorConnection(initial: String, cursor: Int): InputConnection {
+    private fun beforeAfterEditorConnection(
+        initial: String,
+        cursor: Int,
+        selectedText: String?,
+        extractedSelectionAvailable: Boolean = false,
+    ): InputConnection {
         val content = StringBuilder(initial)
         var position = cursor
         return Proxy.newProxyInstance(
@@ -368,7 +416,15 @@ class InputConnectionEditorTest {
             arrayOf(InputConnection::class.java),
         ) { proxy, method, args ->
             when (method.name) {
-                "getSurroundingText", "getExtractedText", "getSelectedText" -> null
+                "getSurroundingText" -> null
+                "getExtractedText" -> if (extractedSelectionAvailable) {
+                    ExtractedText().apply {
+                        text = "x".repeat(9_000)
+                        selectionStart = position
+                        selectionEnd = position
+                    }
+                } else null
+                "getSelectedText" -> selectedText
                 "getTextBeforeCursor" -> content.substring((position - (args!![0] as Int)).coerceAtLeast(0), position)
                 "getTextAfterCursor" -> content.substring(position, (position + (args!![0] as Int)).coerceAtMost(content.length))
                 "finishComposingText" -> true
@@ -415,13 +471,14 @@ class InputConnectionEditorTest {
         private var start = selectionStart
         private var end = selectionEnd
         var supportsSnapshot = true
+        var finishComposingResult = true
         var rejectDeletion = false
         var rejectActions = false
         val actions = mutableListOf<Int>()
         val keyEvents = mutableListOf<Pair<Int, Int>>()
         val committedText = mutableListOf<String>()
 
-        override fun finishComposingText() = true
+        override fun finishComposingText() = finishComposingResult
 
         override fun commitText(text: String, newCursorPosition: Int): Boolean {
             committedText += text

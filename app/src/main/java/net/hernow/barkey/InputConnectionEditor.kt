@@ -14,8 +14,10 @@ internal class InputConnectionEditor {
         value: String,
         recordUndo: Boolean,
     ): Boolean {
-        val compositionFinished = connection.finishComposingText()
-        return insertText(connection, sessionId, value, recordUndo && compositionFinished)
+        // finishComposingText() may return false even when commitText() and the subsequent
+        // bounded before/after verification succeed. The verified insertion is the Undo gate.
+        connection.finishComposingText()
+        return insertText(connection, sessionId, value, recordUndo)
     }
 
     /** Inserts text from a BarKey control and records it only when bounded snapshots verify it. */
@@ -28,7 +30,8 @@ internal class InputConnectionEditor {
         undoRecord = null
         val before = if (recordUndo && value.isNotEmpty() && value.length <= MAX_UNDO_TEXT_LENGTH) {
             connection.cursorSnapshot(CONTEXT_CHARS, CONTEXT_CHARS)?.takeIf {
-                it.selectionStart == it.selectionEnd && it.textBeforeCursor != null && it.textAfterCursor != null
+                it.selectionIsKnown && it.selectionStart == it.selectionEnd &&
+                    it.textBeforeCursor != null && it.textAfterCursor != null
             }
         } else {
             null
@@ -40,7 +43,7 @@ internal class InputConnectionEditor {
             val expectedAfter = before.textAfterCursor
             if (expectedBefore != null && expectedAfter != null) {
                 val after = connection.cursorSnapshot(expectedBefore.length, expectedAfter.length)
-                if (after != null && after.selectionStart == after.selectionEnd &&
+                if (after != null && after.selectionIsKnown && after.selectionStart == after.selectionEnd &&
                     after.textBeforeCursor == expectedBefore && after.textAfterCursor == expectedAfter &&
                     (before.absoluteCursorPosition == null ||
                         after.absoluteCursorPosition == before.absoluteCursorPosition + value.length)
@@ -133,22 +136,35 @@ internal class InputConnectionEditor {
         undoRecord = null
     }
 
-    fun backspace(connection: EditorConnection): Boolean {
-        val snapshot = connection.cursorSnapshot(2, 0) ?: return false
-        if (snapshot.hasSelection) return connection.commitText("", 1)
+    fun hasUndoRecord(): Boolean = undoRecord != null
 
-        val before = snapshot.textBeforeCursor ?: connection.textBeforeCursor(2) ?: return false
-        if (before.isEmpty()) return true
-        if (connection.deleteSurroundingTextInCodePoints(1, 0)) return true
+    fun backspace(connection: EditorConnection): BackspaceResult {
+        val snapshot = connection.cursorSnapshot(2, 0) ?: return BackspaceResult.FAILED
+        if (snapshot.selectionIsKnown && snapshot.hasSelection) {
+            val deleted = connection.commitText("", 1)
+            if (!deleted) return BackspaceResult.FAILED
+            undoRecord = null
+            return BackspaceResult.DELETED
+        }
+        val before = snapshot.textBeforeCursor ?: connection.textBeforeCursor(2) ?: return BackspaceResult.FAILED
+        if (before.isEmpty() && !snapshot.hasSelection) return BackspaceResult.NO_OP
+        if (!snapshot.selectionIsKnown) return BackspaceResult.FAILED
+
+        if (connection.deleteSurroundingTextInCodePoints(1, 0)) {
+            undoRecord = null
+            return BackspaceResult.DELETED
+        }
 
         // The old API can return false when an editor does not implement code-point deletion.
         // Check that the attempted deletion made no change, then preserve UTF-16 surrogate pairs.
-        if (connection.textBeforeCursor(2) != before) return false
+        if (connection.textBeforeCursor(2) != before) return BackspaceResult.FAILED
         val last = before.last()
         val utf16Length = if (last.isLowSurrogate() && before.length > 1 &&
             before[before.lastIndex - 1].isHighSurrogate()
         ) 2 else 1
-        return connection.deleteSurroundingText(utf16Length, 0)
+        if (!connection.deleteSurroundingText(utf16Length, 0)) return BackspaceResult.FAILED
+        undoRecord = null
+        return BackspaceResult.DELETED
     }
 
     fun insertSpace(connection: EditorConnection, sessionId: Long, recordUndo: Boolean): Boolean =
@@ -187,6 +203,7 @@ internal class InputConnectionEditor {
         if (connection.identity !== record.connectionIdentity || record.sessionId != sessionId) return MatchResult.CHANGED
         val snapshot = connection.cursorSnapshot(record.expectedBefore.length, record.expectedAfter.length)
             ?: return MatchResult.UNKNOWN
+        if (!snapshot.selectionIsKnown) return MatchResult.UNKNOWN
         if (snapshot.selectionStart != snapshot.selectionEnd) return MatchResult.CHANGED
         if (snapshot.textBeforeCursor == null || snapshot.textAfterCursor == null) return MatchResult.UNKNOWN
         val matches = snapshot.textBeforeCursor == record.expectedBefore &&
@@ -198,7 +215,7 @@ internal class InputConnectionEditor {
     private fun verifyUndoResult(record: UndoRecord, connection: EditorConnection): Boolean {
         val snapshot = connection.cursorSnapshot(record.expectedBefore.length, record.expectedAfter.length) ?: return false
         val originalBefore = record.expectedBefore.removeSuffix(record.insertedText)
-        return snapshot.selectionStart == snapshot.selectionEnd &&
+        return snapshot.selectionIsKnown && snapshot.selectionStart == snapshot.selectionEnd &&
             (record.originalCursorPosition == null || snapshot.absoluteCursorPosition == record.originalCursorPosition) &&
             snapshot.textBeforeCursor == originalBefore &&
             snapshot.textAfterCursor == record.expectedAfter

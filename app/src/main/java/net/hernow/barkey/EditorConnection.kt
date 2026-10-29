@@ -21,7 +21,10 @@ internal data class EditorCursorSnapshot(
     val selectionStart: Int,
     val selectionEnd: Int,
     val absoluteCursorPosition: Int?,
+    val selectionIsKnown: Boolean = true,
 ) {
     val hasSelection: Boolean
         get() = selectionStart != selectionEnd
 }
+
+internal enum class BackspaceResult { DELETED, NO_OP, FAILED }

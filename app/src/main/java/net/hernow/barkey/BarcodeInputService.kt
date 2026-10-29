@@ -369,7 +369,13 @@ class BarcodeInputService : InputMethodService() {
             if (suppressBackspaceClick) {
                 suppressBackspaceClick = false
             } else {
-                editCurrentField { connection, _ -> inputEditor.backspace(connection) }
+                val connection = currentInputConnection
+                if (connection == null) {
+                    setStatus(R.string.editing_unavailable)
+                    refreshUndoButton()
+                } else {
+                    performBackspace(connection, currentSessionId, refreshUndo = true)
+                }
             }
         }
         installBackspaceRepeat(backspaceButton)
@@ -1365,10 +1371,13 @@ class BarcodeInputService : InputMethodService() {
                     val connection = currentInputConnection ?: return@setOnTouchListener false
                     val sessionId = currentSessionId
                     view.isPressed = true
+                    var refreshUndo = true
                     backspaceRepeat.press {
-                        if (helpVisible || !isInputViewShown || currentSessionId != sessionId ||
+                        val result = if (helpVisible || !isInputViewShown || currentSessionId != sessionId ||
                             currentInputConnection !== connection
-                        ) false else performBackspace(connection, sessionId)
+                        ) BackspaceResult.FAILED else performBackspace(connection, sessionId, refreshUndo)
+                        refreshUndo = false
+                        result == BackspaceResult.DELETED
                     }
                     true
                 }
@@ -1397,17 +1406,26 @@ class BarcodeInputService : InputMethodService() {
         }
     }
 
-    private fun performBackspace(connection: InputConnection, sessionId: Long): Boolean {
+    private fun performBackspace(
+        connection: InputConnection,
+        sessionId: Long,
+        refreshUndo: Boolean,
+    ): BackspaceResult {
         if (helpVisible || !isInputViewShown || currentSessionId != sessionId || currentInputConnection !== connection) {
-            return false
+            return BackspaceResult.FAILED
         }
+        val undoWasRecorded = inputEditor.hasUndoRecord()
+        if (undoWasRecorded) inputEditor.clearUndo()
         return try {
-            inputEditor.backspace(AndroidEditorConnection(connection)).also {
-                if (!it) setStatus(R.string.editing_unavailable)
+            inputEditor.backspace(AndroidEditorConnection(connection)).also { result ->
+                if (result == BackspaceResult.FAILED) setStatus(R.string.editing_unavailable)
+                if (refreshUndo || undoWasRecorded) refreshUndoButton()
             }
         } catch (error: RuntimeException) {
             Log.w(TAG, "Input field rejected Backspace (${error.javaClass.simpleName})")
-            false
+            setStatus(R.string.editing_unavailable)
+            if (refreshUndo || undoWasRecorded) refreshUndoButton()
+            BackspaceResult.FAILED
         }
     }
 
