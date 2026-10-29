@@ -66,6 +66,7 @@ class InputConnectionEditorTest {
 
         val selected = FakeEditorConnection()
         assertTrue(editor.insertText(selected, 5L, "X", recordUndo = true))
+        selected.setCursor(0)
         editor.onSelectionChanged(selected, 5L, 0, 0)
         assertFalse(editor.canUndo(selected, 5L))
         assertEquals("X", selected.value())
