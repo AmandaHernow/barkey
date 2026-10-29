@@ -26,10 +26,11 @@
     <string name="setup_camera_button_allowed">Camera allowed</string>
     <string name="setup_settings_unavailable">Android keyboard settings could not be opened.</string>
     <string name="setup_picker_unavailable">Android keyboard picker is unavailable.</string>
-    <string name="setup_browser_unavailable">No browser is available to open this link.</string>
+    <string name="setup_browser_unavailable">No app is available to open this link.</string>
     <string name="setup_link_about">About</string>
     <string name="setup_link_privacy">Privacy Policy</string>
     <string name="setup_link_github">GitHub</string>
+    <string name="setup_link_support">Support</string>
     <string name="all_barcodes">BarKey</string>
     <string name="suffix_label">Text after each scan</string>
     <string name="suffix_none">None</string>
@@ -161,5 +162,8 @@
     <string name="help_support_body">If BarKey is useful, you may optionally support development through PayPal. Donations are voluntary and provide no features, access or other benefits. You can use BarKey without donating.</string>
     <string name="help_support_button">Buy Me a Coffee via PayPal</string>
     <string name="help_support_qr_description">Optional PayPal support QR code</string>
-    <string name="help_open_link_failed">No browser is available to open this link.</string>
+    <string name="help_contact_heading">Contact and feedback</string>
+    <string name="help_contact_body">For BarKey support or privacy questions, email barkey.support@hernow.net. Please do not include barcode contents or other private data in public messages.</string>
+    <string name="help_contact_email">Email BarKey Support</string>
+    <string name="help_open_link_failed">No app is available to open this link.</string>
 </resources>

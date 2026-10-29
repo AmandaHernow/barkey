@@ -195,6 +195,10 @@ internal class AboutHelpPanel(
             }
             section.addView(supportButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
+        addSection(context, R.string.help_contact_heading) { section ->
+            addBody(context, section, R.string.help_contact_body)
+            addExternalLink(context, section, R.string.help_contact_email, SUPPORT_EMAIL_URL)
+        }
         scroll.addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         view = root
@@ -261,8 +265,10 @@ internal class AboutHelpPanel(
 
     private fun openExternal(context: Context, url: String) {
         try {
+            val uri = Uri.parse(url)
             context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                Intent(if (uri.scheme == "mailto") Intent.ACTION_SENDTO else Intent.ACTION_VIEW, uri)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         } catch (_: ActivityNotFoundException) {
             Toast.makeText(context, R.string.help_open_link_failed, Toast.LENGTH_LONG).show()
@@ -300,5 +306,6 @@ internal class AboutHelpPanel(
         const val ENCRYPTION_URL = "https://github.com/AmandaHernow/EncryptionDecryptionUtilityTool"
         const val HERNOWNET_URL = "https://hernow.net"
         const val PAYPAL_URL = "https://www.paypal.me/AmandaHernow"
+        const val SUPPORT_EMAIL_URL = "mailto:barkey.support@hernow.net"
     }
 }

@@ -10,6 +10,8 @@
 
 **Website:** [Home](https://amandahernow.github.io/barkey/) · [About BarKey](https://amandahernow.github.io/barkey/about.html) · [Privacy Policy](https://amandahernow.github.io/barkey/privacy-policy.html)
 
+**Support:** [barkey.support@hernow.net](mailto:barkey.support@hernow.net)
+
 **BarKey — Developed by Amanda Hernow** is a free, open-source Android barcode and QR scanner keyboard designed to work offline, without advertisements or tracking.
 
 This repository prepares the personal, public Google Play version of BarKey. The application ID remains `net.hernow.barkey`.

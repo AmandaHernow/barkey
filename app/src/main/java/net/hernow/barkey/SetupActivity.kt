@@ -118,6 +118,7 @@ class SetupActivity : Activity() {
             getString(R.string.setup_link_about) to ABOUT_URL,
             getString(R.string.setup_link_privacy) to PRIVACY_URL,
             getString(R.string.setup_link_github) to GITHUB_URL,
+            getString(R.string.setup_link_support) to SUPPORT_EMAIL_URL,
         ).forEachIndexed { index, (label, url) ->
             if (index > 0) links.addView(text(" · ", 14f), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             val link = text(label, 14f).apply {
@@ -276,7 +277,8 @@ class SetupActivity : Activity() {
 
     private fun openExternal(url: String) {
         try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            val uri = Uri.parse(url)
+            startActivity(Intent(if (uri.scheme == "mailto") Intent.ACTION_SENDTO else Intent.ACTION_VIEW, uri))
         } catch (_: ActivityNotFoundException) {
             Toast.makeText(this, R.string.setup_browser_unavailable, Toast.LENGTH_LONG).show()
         }
@@ -296,5 +298,6 @@ class SetupActivity : Activity() {
         const val ABOUT_URL = "https://amandahernow.github.io/barkey/about.html"
         const val PRIVACY_URL = "https://amandahernow.github.io/barkey/privacy-policy.html"
         const val GITHUB_URL = "https://github.com/AmandaHernow/barkey"
+        const val SUPPORT_EMAIL_URL = "mailto:barkey.support@hernow.net"
     }
 }
