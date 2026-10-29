@@ -24,6 +24,7 @@
     <string name="retry_camera">Retry Camera</string>
     <string name="switch_keyboard">Switch Keyboard</string>
     <string name="keyboard_switch_unavailable">Keyboard switching is unavailable. Use the Android keyboard picker.</string>
+    <string name="hide_keyboard_label">Hide Keyboard</string>
     <string name="hide_keyboard">Hide scanner keyboard</string>
     <string name="undo_short">Undo</string>
     <string name="undo_scan">Undo most recent scanner insertion</string>

@@ -6,8 +6,19 @@ import org.junit.Test
 class ResponsiveKeyboardLayoutPolicyTest {
     @Test fun toolbarRowsNeverAssumeTabletWidth() {
         assertEquals(2, ResponsiveKeyboardLayoutPolicy.toolbarColumns(390, 3f))
-        assertEquals(4, ResponsiveKeyboardLayoutPolicy.toolbarColumns(500, 2.5f))
+        assertEquals(3, ResponsiveKeyboardLayoutPolicy.toolbarColumns(500, 2.5f))
         assertEquals(1, ResponsiveKeyboardLayoutPolicy.toolbarColumns(120, 3f))
+    }
+
+    @Test fun toolbarKeepsSixBalancedColumnsWhenAvailableAndWrapsOnNarrowScreens() {
+        assertEquals(6, ResponsiveKeyboardLayoutPolicy.toolbarColumns(1080, 3f))
+        assertEquals(5, ResponsiveKeyboardLayoutPolicy.toolbarColumns(1032, 3f))
+        assertEquals(6, ResponsiveKeyboardLayoutPolicy.toolbarColumns(2400, 2f))
+    }
+
+    @Test fun developerSignatureYieldsWhenItWouldCrowdFunctionalContent() {
+        assertEquals(true, ResponsiveKeyboardLayoutPolicy.shouldShowDeveloperSignature(500, 460, 40))
+        assertEquals(false, ResponsiveKeyboardLayoutPolicy.shouldShowDeveloperSignature(499, 460, 40))
     }
 
     @Test fun previewSizingIsStableAcrossRepeatedLayoutPasses() {
