@@ -8,13 +8,13 @@
 
 **Repository:** [github.com/AmandaHernow/barkey](https://github.com/AmandaHernow/barkey)
 
-BarKey is a free, open-source Android barcode and QR scanner keyboard designed to work offline, without advertisements or tracking.
+**BarKey — Developed by Amanda Hernow** is a free, open-source Android barcode and QR scanner keyboard designed to work offline, without advertisements or tracking.
 
-This repository prepares the personal, public Google Play version of BarKey. It documents the substantially modified BarKey project derived from the 2020 Android Barcode Keyboard. The application ID remains `net.hernow.barkey`.
+This repository prepares the personal, public Google Play version of BarKey. The application ID remains `net.hernow.barkey`.
 
 BarKey is an Android Input Method Editor (IME) that replaces the usual on-screen keyboard with a rear-camera scanning interface. It decodes barcode and QR code values on the device and inserts them directly into the currently focused text field. This can simplify inventory management, production work, warehouse operations, enterprise forms and other workflows where operators repeatedly enter scanned values.
 
-BarKey is an independent, actively maintained application developed from Raphael Michel's open-source Android Barcode Keyboard. It has undergone substantial redesign and further development. Version 1.0 is the first BarKey-branded development version. Project-owner testing has verified camera scanning, barcode insertion, Undo, repeating Backspace and keyboard layout on a physical Android tablet. The tablet model and OS version are not recorded here, and broader device, editor and accessibility compatibility checks remain ongoing.
+Version 1.0 is the first BarKey-branded development version. Project-owner testing has verified camera scanning, barcode insertion, Undo, repeating Backspace and keyboard layout on a physical Android tablet. The tablet model and OS version are not recorded here, and broader device, editor and accessibility compatibility checks remain ongoing.
 
 ## Features
 
@@ -44,7 +44,7 @@ Drag the 40dp grab mark at the top of BarKey upward to make the docked keyboard 
 
 ## Privacy and security
 
-BarKey is free to use. It contains no advertisements, analytics, telemetry, user tracking, accounts or registration. The app manifest requests camera access and does not request Internet access. Camera frames and barcode decoding are handled locally. Scans are inserted into the destination field without using the clipboard, and the app does not maintain barcode history or persist scanned values.
+BarKey is free to use. It contains no advertisements, analytics, telemetry, user tracking, accounts or registration. The source manifest requests camera access and removes Internet and network-state permissions. Camera frames and barcode decoding are handled locally. Scans are inserted into the destination field without using the clipboard, and the app does not maintain barcode history or persist scanned values.
 
 A decoded value exists temporarily in memory while it is processed and delivered. Duplicate suppression retains only the most recently accepted value during the active input session, for comparison within a one-second window. The guarded one-level Undo feature may temporarily retain the most recent inserted value and bounded surrounding cursor context in memory. That context is cleared when the relevant field/session changes or the keyboard is hidden or switched away from. These values are not written to logs or persistent storage. This description reflects the app implementation and is not a broader security certification.
 
@@ -149,23 +149,17 @@ BarKey is under active development and is being prepared for a public Google Pla
 - Establish production signing and secure release-key management.
 - Complete Play Console declarations, store listing and release review before publication; no listing or release APK currently exists.
 
-## Open-source origins and acknowledgements
+## Open Source & Credits
 
-BarKey was developed from Raphael Michel's [Android Barcode Keyboard](https://github.com/raphaelm/android-barcode-keyboard), originally released under the Apache License 2.0 in 2020. BarKey has since been substantially redesigned and further developed. The original author is credited for the original work; BarKey's later modifications are attributed separately to Amanda Hernow.
+BarKey is developed by Amanda Hernow and licensed under the [Apache License 2.0](LICENSE). Primary local barcode decoding is provided by [ZXing-C++ Android 3.1.1](https://github.com/zxing-cpp/zxing-cpp); [ZXing Core 3.5.4](https://github.com/zxing/zxing) is the Java decoder fallback. Both projects use Apache License 2.0. [AndroidX CameraX](https://github.com/androidx/androidx) provides camera capture and preview; AndroidX Core and Lifecycle provide Android application support. [Google Guava 33.7.2-android](https://github.com/google/guava) is a CameraX support dependency pinned by BarKey. These runtime libraries use Apache License 2.0; CameraX camera-core artifact metadata also declares BSD-3-Clause material. The test-only dependency [JUnit 4.13.2](https://github.com/junit-team/junit4) uses [Eclipse Public License 1.0](https://www.eclipse.org/legal/epl-v10.html). Project and applicable licence links are collected in the project [NOTICE](NOTICE).
 
-The scanner uses [ZXing-C++ Android 3.1.1](https://github.com/zxing-cpp/zxing-cpp) as its primary local decoder and retains [ZXing Core](https://github.com/zxing/zxing) as a compatibility fallback. It offers Fast and Accurate scanning modes, tap-to-focus and an optional torch on devices with flash hardware. Both decoders run on-device; no scanned data is sent over the network. AndroidX and CameraX provide Android camera/UI functionality, and Guava is a dependency. These components are distributed under Apache License 2.0. JUnit 4.13.2 is used only as a test dependency and is licensed under [Eclipse Public License 1.0](https://www.eclipse.org/legal/epl-v10.html). See the project [NOTICE](NOTICE) for attribution details and [LICENSE](LICENSE) for the licence applying to BarKey's project distribution.
+BarKey originated from the [Android Barcode Keyboard project by Raphael Michel (2020)](https://github.com/raphaelm/android-barcode-keyboard), licensed under Apache 2.0. The application has since been extensively redeveloped. This neutral historical acknowledgement complements applicable notices retained in the repository; it does not describe the current developer or scanning implementation. Source comparison found no substantial distinctive upstream implementation blocks among BarKey’s current production Kotlin files, but this review is not an exhaustive legal determination. BarKey’s source comments and NOTICE retain historical attribution pending any further provenance determination.
 
 ## Copyright and licence
 
 **Copyright © 2026 Amanda Hernow.**
 
-**Portions Copyright © 2020 Raphael Michel.**
-
 Licensed under the [Apache License, Version 2.0](LICENSE).
-
-BarKey is based on [Android Barcode Keyboard](https://github.com/raphaelm/android-barcode-keyboard) by Raphael Michel (2020), with substantial modifications and further development by Amanda Hernow (2026).
-
-Barcode decoding uses [ZXing](https://github.com/zxing/zxing) and [ZXing-C++](https://github.com/zxing-cpp/zxing-cpp), both licensed under Apache License 2.0.
 
 ## Developer
 

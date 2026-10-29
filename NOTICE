@@ -1,29 +1,51 @@
-BarKey
-Copyright 2020 Raphael Michel (original Android Barcode Keyboard work).
-Copyright 2026 Amanda Hernow (BarKey modifications and further development).
+BarKey — Developed by Amanda Hernow
+Copyright 2026 Amanda Hernow (BarKey work).
 
-BarKey is derived from Android Barcode Keyboard by Raphael Michel,
-https://github.com/raphaelm/android-barcode-keyboard, originally distributed
-under the Apache License, Version 2.0. BarKey has been substantially modified
-and further developed. The 2026 copyright notice applies to those modifications
-and does not claim ownership of Raphael Michel's original work.
+BarKey is licensed under the Apache License, Version 2.0. See LICENSE.
 
-Third-party components used by the application:
+Historical source notice
+------------------------
+The project README for the 2020 Android Barcode Keyboard project by Raphael
+Michel stated: "Copyright 2020 Raphael Michel. Apache License 2.0." This
+historical notice is retained out of caution for any original material that may
+remain. BarKey has since been extensively redeveloped. A source comparison did
+not identify substantial distinctive upstream implementation blocks among the
+current production Kotlin files, but that review is not an exhaustive legal
+determination. Generic Android input-method APIs, manifest declarations,
+permission flows, and Gradle configuration are not treated as proof of copied
+authorship. The original project used dm77/barcodescanner-view; BarKey does not
+use that library.
 
-- ZXing Core, Copyright ZXing authors, Apache License 2.0.
-  https://github.com/zxing/zxing
-- ZXing-C++ Android wrapper and core, Copyright 2016-2026 ZXing authors,
-  Nu-book Inc., Axel Waggershauser and contributors, Apache License 2.0.
-  https://github.com/zxing-cpp/zxing-cpp
-- AndroidX and CameraX, Apache License 2.0.
-  https://github.com/androidx/androidx
-- Guava, Copyright Google LLC, Apache License 2.0.
+Runtime components
+------------------
+- ZXing-C++ Android 3.1.1 and ZXing-C++ core, barcode decoding library and
+  Android wrapper. Preserve copyright and attribution notices as stated in
+  upstream files. Apache License 2.0. https://github.com/zxing-cpp/zxing-cpp
+- ZXing Core 3.5.4, Java barcode decoder. Copyright ZXing authors. Apache
+  License 2.0. https://github.com/zxing/zxing
+- AndroidX CameraX 1.6.2, AndroidX Core 1.19.1, and AndroidX Lifecycle 2.11.0,
+  used for camera capture/preview and Android application support. Apache
+  License 2.0. The CameraX camera-core artifact metadata also declares
+  BSD-3-Clause-licensed material. https://github.com/androidx/androidx
+- Google Guava 33.7.2-android, CameraX support dependency pinned by BarKey.
+  Apache License 2.0.
   https://github.com/google/guava
-- JUnit 4.13.2 (test dependency), Eclipse Public License 1.0.
-  https://github.com/junit-team/junit4
-- Gradle Wrapper scripts and wrapper JAR, Copyright Gradle, Inc. and/or its
-  licensors, Apache License 2.0. The wrapper distribution itself is supplied
-  by Gradle; see https://gradle.org/ for its notices.
+- Transitive runtime support includes AndroidX libraries, Kotlin Standard
+  Library 2.4.21, kotlinx.coroutines 1.9.0, kotlinx.atomicfu 0.28.0, Dagger
+  2.59, Jakarta Inject 2.0.1, javax.inject 1, AutoValue annotations 1.6.3,
+  Error Prone annotations 2.50.0, J2ObjC annotations 3.1, JSpecify 1.0.1,
+  JetBrains annotations 23.0.0, Guava failureaccess 1.0.3, and the empty
+  listenablefuture compatibility artifact. Their published metadata or bundled
+  notices identify Apache License 2.0; retain upstream notices when redistributing.
 
-This notice is informational. Each third-party component remains subject to
-its own licence and applicable upstream notices.
+Development and test components
+-------------------------------
+- JUnit 4.13.2 is used only for tests and is licensed under Eclipse Public
+  License 1.0. https://github.com/junit-team/junit4
+- Gradle Wrapper scripts and wrapper JAR are build tooling, not app runtime
+  dependencies; see the wrapper's upstream notices and https://gradle.org/.
+
+This file summarizes attribution based on the resolved release runtime
+dependency graph and available artifact metadata. Each component remains subject
+to its own license and applicable upstream notices. This summary is not a
+substitute for those licenses or a complete legal opinion.

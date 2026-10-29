@@ -146,10 +146,22 @@ internal class AboutHelpPanel(
         addSection(context, R.string.help_open_source_heading) { section ->
             addBody(context, section, R.string.help_open_source_body)
             addBody(context, section, R.string.help_developer)
-            addBody(context, section, R.string.help_original_project)
+            addBody(context, section, R.string.help_zxing_cpp_credit)
+            addExternalLink(context, section, R.string.help_zxing_cpp_link, ZXING_CPP_URL)
+            addBody(context, section, R.string.help_zxing_java_credit)
+            addExternalLink(context, section, R.string.help_zxing_java_link, ZXING_JAVA_URL)
+            addBody(context, section, R.string.help_androidx_credit)
+            addExternalLink(context, section, R.string.help_androidx_link, ANDROIDX_URL)
+            addBody(context, section, R.string.help_guava_credit)
+            addExternalLink(context, section, R.string.help_guava_link, GUAVA_URL)
+            addExternalLink(context, section, R.string.help_apache_license_link, APACHE_LICENSE_URL)
+            addExternalLink(context, section, R.string.help_bsd_license_link, BSD_LICENSE_URL)
             addExternalLink(context, section, R.string.help_repository, GITHUB_URL)
             addBody(context, section, R.string.help_license)
             addExternalLink(context, section, R.string.help_license, LICENSE_URL)
+            addBody(context, section, R.string.help_legal_credits_heading)
+            addBody(context, section, R.string.help_original_project)
+            addExternalLink(context, section, R.string.help_original_project_link, ORIGINAL_PROJECT_URL)
             addBody(context, section, R.string.help_version, versionName)
         }
         addSection(context, R.string.help_related_heading) { section ->
@@ -281,6 +293,13 @@ internal class AboutHelpPanel(
         const val PRIVACY_URL = "https://amandahernow.github.io/barkey/privacy-policy.html"
         const val GITHUB_URL = "https://github.com/AmandaHernow/barkey"
         const val LICENSE_URL = "https://github.com/AmandaHernow/barkey/blob/main/LICENSE"
+        const val ZXING_CPP_URL = "https://github.com/zxing-cpp/zxing-cpp"
+        const val ZXING_JAVA_URL = "https://github.com/zxing/zxing"
+        const val ANDROIDX_URL = "https://github.com/androidx/androidx"
+        const val GUAVA_URL = "https://github.com/google/guava"
+        const val APACHE_LICENSE_URL = "https://www.apache.org/licenses/LICENSE-2.0"
+        const val BSD_LICENSE_URL = "https://opensource.org/license/bsd-3-clause/"
+        const val ORIGINAL_PROJECT_URL = "https://github.com/raphaelm/android-barcode-keyboard"
         const val BLACKJACK_URL = "https://github.com/AmandaHernow/BlackJackCounterTool"
         const val ENCRYPTION_URL = "https://github.com/AmandaHernow/EncryptionDecryptionUtilityTool"
         const val HERNOWNET_URL = "https://hernow.net"

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="About BarKey, its offline barcode scanning, privacy design, developer, open-source origins, and related projects.">
+  <meta name="description" content="BarKey — developed by Amanda Hernow. Learn about its offline scanning, privacy, open-source credits, and related projects.">
   <meta name="author" content="Amanda Hernow">
   <meta name="theme-color" content="#172235">
   <title>About BarKey | Amanda Hernow</title>
@@ -27,6 +27,7 @@
       <div>
         <span class="eyebrow">Free · Private · Android</span>
         <h1>BarKey</h1>
+        <p class="role">Developed by Amanda Hernow</p>
         <p>A barcode and QR scanner keyboard for Android. Scan a code with the rear camera and place its value directly into the text field you’re working in.</p>
         <div class="facts"><span>No account</span><span>No ads or tracking</span><span>On-device scanning</span><span>Apache 2.0</span></div>
       </div>
@@ -55,7 +56,7 @@
           <p>I create free software because useful tools should not require an account, an unnecessary subscription, or a stream of advertisements. In my own applications, I oppose unnecessary subscriptions, advertising, tracking, and paywalls. BarKey has no paid features; an optional donation does not unlock anything.</p>
         </section>
         <section class="card" aria-labelledby="privacy"><span class="kicker">Privacy by design</span><h2 id="privacy">Local scanning, clear boundaries</h2>
-          <p>BarKey has no Internet permission. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan and Undo data is held in memory only as needed by the active input session.</p>
+          <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan and Undo data is held in memory only as needed by the active input session.</p>
           <a href="privacy-policy.html">Read the Android app Privacy Policy</a>
         </section>
       </div>
@@ -63,10 +64,13 @@
         <img src="assets/amanda.jpg" alt="Amanda Hernow" width="640" height="640" loading="lazy">
         <div><span class="kicker">About the developer</span><h2 id="developer">Amanda Hernow</h2><p class="role">Independent developer</p><p>I build practical software with privacy as a default, not an expensive extra. I aim to explain what my applications do, how they handle data, and where their limits are.</p></div>
       </section>
-      <section class="card" aria-labelledby="origin"><span class="kicker">Open source and attribution</span><h2 id="origin">Apache License 2.0</h2>
-        <p>BarKey is a substantially modified derivative of Raphael Michel’s <a href="https://github.com/raphaelm/android-barcode-keyboard">Android Barcode Keyboard</a>, originally released in 2020 under the Apache License 2.0. The original project is acknowledged in BarKey’s <a href="https://github.com/AmandaHernow/barkey/blob/main/NOTICE">NOTICE</a>; BarKey’s later modifications are attributed to Amanda Hernow. BarKey remains licensed under the Apache License 2.0. Its LICENSE and NOTICE files are included in the repository.</p>
-        <p>Barcode decoding uses <a href="https://github.com/zxing-cpp/zxing-cpp">ZXing-C++</a> with <a href="https://github.com/zxing/zxing">ZXing Core</a> as a compatibility fallback. CameraX and AndroidX provide camera and Android interface functionality. See the repository’s NOTICE for component attribution.</p>
-        <div class="project-links"><a class="pill" href="https://github.com/AmandaHernow/barkey">BarKey source on GitHub</a><a class="pill" href="https://github.com/AmandaHernow/barkey/blob/main/LICENSE">Apache 2.0 licence</a></div>
+      <section class="card" aria-labelledby="origin"><span class="kicker">Open source</span><h2 id="origin">Open Source &amp; Credits</h2>
+        <p>BarKey — developed by Amanda Hernow — is licensed under the Apache License 2.0. Barcode decoding runs locally with <a href="https://github.com/zxing-cpp/zxing-cpp">ZXing-C++ Android 3.1.1</a> as the primary decoder and <a href="https://github.com/zxing/zxing">ZXing Core 3.5.4</a> as a Java fallback. Both projects use Apache License 2.0.</p>
+        <p><a href="https://github.com/androidx/androidx">AndroidX CameraX</a> provides camera capture and preview; AndroidX Core and Lifecycle provide Android application support. <a href="https://github.com/google/guava">Google Guava 33.7.2-android</a> is a CameraX support dependency pinned by BarKey. These libraries use Apache License 2.0; CameraX camera-core artifact metadata also declares BSD-3-Clause material. The app’s test-only JUnit 4.13.2 dependency is licensed under <a href="https://www.eclipse.org/legal/epl-v10.html">Eclipse Public License 1.0</a>.</p>
+        <h3>Legal credits</h3>
+        <p>BarKey originated from the <a href="https://github.com/raphaelm/android-barcode-keyboard">Android Barcode Keyboard project by Raphael Michel (2020)</a>, licensed under Apache 2.0. The application has since been extensively redeveloped.</p>
+        <p>See the project <a href="https://github.com/AmandaHernow/barkey/blob/main/NOTICE">NOTICE</a> for attribution information, and its <a href="https://github.com/AmandaHernow/barkey/blob/main/LICENSE">LICENSE</a> for the licence applying to BarKey.</p>
+        <div class="project-links"><a class="pill" href="https://github.com/AmandaHernow/barkey">BarKey source on GitHub</a><a class="pill" href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 licence</a><a class="pill" href="https://opensource.org/license/bsd-3-clause/">BSD 3-Clause licence</a><a class="pill" href="https://github.com/zxing-cpp/zxing-cpp/blob/master/LICENSE">ZXing-C++ licence</a><a class="pill" href="https://github.com/zxing/zxing/blob/master/LICENSE">ZXing Core licence</a><a class="pill" href="https://github.com/google/guava/blob/master/LICENSE">Guava licence</a></div>
       </section>
       <section class="card" aria-labelledby="projects"><span class="kicker">Also by me</span><h2 id="projects">Related projects</h2>
         <div class="grid">
