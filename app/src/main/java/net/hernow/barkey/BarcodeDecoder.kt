@@ -108,8 +108,7 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
         return FrameValueDecoder { image ->
             val result = reader.read(image).firstOrNull { candidate ->
                 candidate.format != BarcodeReader.Format.NONE &&
-                    candidate.error == null &&
-                    !candidate.bytes.isNullOrEmpty()
+                    candidate.error == null && candidate.bytes?.isNotEmpty() == true
             } ?: return@FrameValueDecoder null
 
             val rawBytes = result.bytes ?: return@FrameValueDecoder null

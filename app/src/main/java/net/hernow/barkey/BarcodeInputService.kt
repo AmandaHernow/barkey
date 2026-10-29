@@ -260,8 +260,8 @@ class BarcodeInputService : InputMethodService() {
         val torchControl = ImageButton(this).apply {
             setImageResource(R.drawable.ic_torch)
             contentDescription = getString(R.string.torch_turn_on)
-            minWidth = dp(48)
-            minHeight = dp(48)
+            minimumWidth = dp(48)
+            minimumHeight = dp(48)
             setPadding(dp(10), dp(10), dp(10), dp(10))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setBackgroundResource(R.drawable.torch_button_background)
