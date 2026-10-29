@@ -10,11 +10,11 @@
 
 BarKey is a free, open-source Android barcode and QR scanner keyboard designed to work offline, without advertisements or tracking.
 
-This README documents the substantially modified BarKey project derived from the 2020 Android Barcode Keyboard.
+This repository prepares the personal, public Google Play version of BarKey. It documents the substantially modified BarKey project derived from the 2020 Android Barcode Keyboard. The application ID remains `net.hernow.barkey`.
 
 BarKey is an Android Input Method Editor (IME) that replaces the usual on-screen keyboard with a rear-camera scanning interface. It decodes barcode and QR code values on the device and inserts them directly into the currently focused text field. This can simplify inventory management, production work, warehouse operations, enterprise forms and other workflows where operators repeatedly enter scanned values.
 
-BarKey is an independent, actively maintained application developed from Raphael Michel's open-source Android Barcode Keyboard. It has undergone substantial redesign and further development. Version 1.0 is the first BarKey-branded development version; it is not a claim of production readiness. The application has not yet completed the planned emulator, physical-device or enterprise deployment validation.
+BarKey is an independent, actively maintained application developed from Raphael Michel's open-source Android Barcode Keyboard. It has undergone substantial redesign and further development. Version 1.0 is the first BarKey-branded development version. Project-owner testing has verified camera scanning, barcode insertion, Undo, repeating Backspace and keyboard layout on a physical Android tablet. The tablet model and OS version are not recorded here, and broader device, editor and accessibility compatibility checks remain ongoing.
 
 ## Features
 
@@ -28,12 +28,15 @@ BarKey is an independent, actively maintained application developed from Raphael
 - Resize the keyboard continuously by dragging the discreet handle above the live camera preview; extra window height enlarges the preview while editing buttons keep their normal size.
 - Include Undo, Backspace, Space, Left, Right, Tab and Enter editing controls, plus controls to switch keyboards or hide BarKey.
 - Include an in-keyboard About & Help panel with usage instructions, privacy and permission explanations, control descriptions, open-source attribution and the installed app version.
+- Include a launcher setup guide for enabling and selecting BarKey through Android's own settings and keyboard picker.
 - Request camera permission when needed, explain permission and camera errors in the keyboard, and release/restart camera resources with the keyboard lifecycle.
 - Suppress an identical scan repeated within the current input session's one-second duplicate window.
 - Support the Android managed configuration `scan_suffix` with `none`, `enter` and `tab` options; the default is `none`.
 - Provide a capability suitable for private enterprise deployment and management through Microsoft Intune. The deployment workflow remains to be validated.
 
-These features describe the implementation. Camera behaviour, field navigation, accessibility, device compatibility and enterprise policy interactions still require testing on emulators and physical production devices.
+The core scanner and keyboard workflow has been verified on a physical Android tablet. Camera behaviour, field navigation, accessibility, compatibility across other devices and enterprise policy interactions still need broader validation.
+
+The GitHub Pages content is prepared in [`docs/`](docs/). The planned public pages are [About](docs/about.html) and [Privacy Policy](docs/privacy-policy.html). Their intended URLs are `https://amandahernow.github.io/barkey/about.html` and `https://amandahernow.github.io/barkey/privacy-policy.html`; GitHub Pages publication has not yet been confirmed, so these URLs are not claimed to be live.
 
 Tap the circled **?** beside scanner status to open About & Help. The panel scrolls within the docked keyboard, leaves the focused text field unchanged and pauses camera use until it is closed. Close it with the **Close** button or Android Back; scanning then resumes when camera permission is available.
 
@@ -47,14 +50,13 @@ A decoded value exists temporarily in memory while it is processed and delivered
 
 ## Installation and first use
 
-There is currently no BarKey release APK or Google Play listing. When a signed APK is made available through a trusted distribution channel:
+BarKey is being prepared for a public Google Play release. There is not yet a published Play listing or release APK. When a signed release is made available:
 
 1. Install the signed APK on the Android device. Updating an existing installation requires a package signed with the same signing key as that installation.
-2. Open Android **Settings → System → Keyboard → On-screen keyboard** (the exact menu labels vary by Android version and device), then enable **BarKey**. Android may display its standard warning about input methods; only enable a keyboard you trust.
-3. Focus an editable text field and use Android's keyboard picker/globe control to select **BarKey**.
-4. If prompted, tap **Enable Camera** and allow camera access. If permission was denied permanently, use the displayed button to open BarKey's camera permission settings.
-5. Point the rear camera at a supported barcode. The decoded value is inserted at the current cursor position in the focused field.
-6. Tap **Switch Keyboard** to return to another enabled keyboard, or **Hide Keyboard** to dismiss the IME.
+2. Open BarKey from the launcher and follow its setup guide. Android requires you to enable and select the keyboard manually; the guide opens Android's settings and picker without changing those settings for you.
+3. If prompted, allow camera access. If permission was denied permanently, use the displayed button to open BarKey's camera permission settings.
+4. Focus a text field in any app and select BarKey with the Android keyboard picker. Point the rear camera at a supported barcode; the value is inserted at the cursor.
+5. Tap **Switch Keyboard** to return to another enabled keyboard, or **Hide Keyboard** to dismiss the IME.
 
 BarKey is not Direct Boot aware. Android's warning that an enabled IME may be unavailable until the device is unlocked after a restart is expected. For this intended workflow, unlock managed tablets before scanning; BarKey does not bypass lock-screen security.
 
@@ -77,13 +79,13 @@ Android `InputConnection` support varies among native fields, Chrome forms and W
 
 ## Android compatibility
 
-The current app configuration is **minimum SDK 24**, **target SDK 37** and **compile SDK 37**. These values describe the source configuration, not a guarantee that every device running those API levels has been tested. The layout supports phone and tablet configurations in portrait and landscape and follows Android's system light/dark appearance; planned device testing remains outstanding. The configured AGP version is 9.4.1 while the Kotlin Gradle Plugin compatibility table currently lists full support through AGP 9.3.1 for KGP 2.4.21. Validate Gradle sync/build in the stated Android Studio environment and reconcile versions if the toolchain reports incompatibility; this migration does not change dependencies or build-tool versions.
+The current app configuration is **minimum SDK 24**, **target SDK 37** and **compile SDK 37**. These values describe the source configuration, not a guarantee that every device running those API levels has been tested. The project owner reports verification of camera scanning, barcode insertion, Undo, Backspace repetition and keyboard layout on a physical Android tablet; the model and OS version have not been recorded in this repository. The launcher guide and keyboard support phone and tablet configurations in portrait and landscape and follow Android's system light/dark appearance. Additional device and host-app testing remains outstanding. The configured AGP version is 9.4.1 while the Kotlin Gradle Plugin compatibility table currently lists full support through AGP 9.3.1 for KGP 2.4.21. Validate Gradle sync/build in the stated Android Studio environment and reconcile versions if the toolchain reports incompatibility; this migration does not change dependencies or build-tool versions.
 
-The IME requests a docked window and disables fullscreen extract mode. Its measured minimum includes the handle, essential controls, footer and a small preview. The user-resizable maximum targets 75% of the display area above the top system inset; the keyboard window retains bottom gravity and a zero Y offset. The IME window extends to its platform-defined bottom boundary while root padding reserves the navigation inset for keyboard content, so that inset is counted once. On exceptionally short displays, the preview shrinks first; if the display still cannot fit all controls, the controls area becomes scrollable with its scrollbar visible while the footer remains visible. BarKey cannot dictate how a third-party host resizes or pans its form above an IME. Host soft-input handling can affect what remains visible. Camera availability in an Android Studio emulator depends on its virtual camera configuration. A virtual rear camera may be absent or behave differently from physical hardware; camera decoding, bottom anchoring, drag resizing and Lenovo-specific behaviour must be validated on a configured emulator and target tablet. Emulator success does not validate physical camera behaviour or Intune policy.
+The IME requests a docked window and disables fullscreen extract mode. Its measured minimum includes the handle, essential controls, footer and a small preview. The user-resizable maximum targets 75% of the display area above the top system inset; the keyboard window retains bottom gravity and a zero Y offset. The IME window extends to its platform-defined bottom boundary while root padding reserves the navigation inset for keyboard content, so that inset is counted once. On exceptionally short displays, the preview shrinks first; if the display still cannot fit all controls, the controls area becomes scrollable with its scrollbar visible while the footer remains visible. BarKey cannot dictate how a third-party host resizes or pans its form above an IME. Host soft-input handling can affect what remains visible. Camera availability in an Android Studio emulator depends on its virtual camera configuration. A virtual rear camera may be absent or behave differently from physical hardware; additional devices and Lenovo-specific behaviour still need validation. Emulator success does not validate Intune policy.
 
 ### Android Studio emulator acceptance checklist
 
-These checks require an Android Studio emulator or device. They have not been run in Codespaces.
+These additional checks require an Android Studio emulator or device and have not been run in Codespaces. The project-owner physical tablet verification covers camera scanning, insertion, Undo, repeating Backspace and the keyboard layout; the specific device and OS are not documented here.
 
 1. **Docking:** Open Chrome's address field with BarKey selected. Confirm the keyboard touches the bottom of the available IME area and no webpage strip appears beneath its footer.
 2. **Resize upward:** Drag the top handle upward. Confirm only the keyboard top moves, the bottom stays fixed, and the live preview grows into the added height.
@@ -138,14 +140,14 @@ Deployment must account for the Android camera permission and the requirement to
 
 ## Project status and roadmap
 
-BarKey is under active development. Version 1.0 is the initial BarKey-branded development version, not necessarily a production-ready release. Priorities include:
+BarKey is under active development and is being prepared for a public Google Play release. Version 1.0 is the initial BarKey-branded development version. Physical-tablet verification is complete for the core scanner and keyboard workflow; remaining priorities include:
 
 - Test the IME, permissions, layouts and form controls in Android Studio emulators.
-- Test camera scanning and lifecycle behaviour on physical Android phones and tablets, especially the Lenovo Tab P12 production target.
+- Expand camera scanning and lifecycle testing across additional physical Android phones and tablets, including the Lenovo Tab P12 target.
 - Validate Chrome and WebView form behaviour, accessibility and compatibility with required enterprise apps.
 - Validate private Intune/Android Enterprise deployment and managed `scan_suffix` configuration.
 - Establish production signing and secure release-key management.
-- Consider Google Play publication when the project is ready; no listing or release APK currently exists.
+- Complete Play Console declarations, store listing and release review before publication; no listing or release APK currently exists.
 
 ## Open-source origins and acknowledgements
 

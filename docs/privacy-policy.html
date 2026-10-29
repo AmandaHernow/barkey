@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Privacy Policy for the personal Android BarKey barcode scanner keyboard.">
+  <meta name="author" content="Amanda Hernow">
+  <meta name="theme-color" content="#172235">
+  <title>Privacy Policy | BarKey for Android</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f3f6fa;--surface:#fff;--ink:#172235;--muted:#536174;--accent:#2866a8;--line:#dbe3ed;--shadow:0 12px 36px #1722350d}
+    @media(prefers-color-scheme:dark){:root{--bg:#101722;--surface:#1a2533;--ink:#eef4fb;--muted:#b7c5d6;--accent:#82b9f4;--line:#334154;--shadow:0 12px 36px #0003}}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 10% 0,#4b83bd20,transparent 38%),var(--bg);color:var(--ink);font:16px/1.72 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--accent);text-underline-offset:3px}
+    .nav{width:min(1050px,calc(100% - 36px));margin:auto;padding:20px 0;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{color:var(--ink);font-weight:800;text-decoration:none}.nav-links,footer nav{display:flex;flex-wrap:wrap;gap:18px}.nav-links a,footer a{font-size:.92rem;font-weight:650;text-decoration:none}
+    header{background:linear-gradient(125deg,#192a43,#285b8c);color:#fff}.hero{width:min(1050px,calc(100% - 36px));margin:auto;padding:46px 0}.eyebrow{color:#b8dbff;font-size:.76rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4rem);line-height:1.05;letter-spacing:-.05em;margin:10px 0}.updated{color:#e1ebf7;margin:0}
+    main{width:min(900px,calc(100% - 36px));margin:32px auto 60px}.intro,.policy-section{padding:clamp(20px,4vw,30px);margin-bottom:14px;border:1px solid var(--line);border-radius:20px;background:var(--surface);box-shadow:var(--shadow)}h2{font-size:1.35rem;line-height:1.25;letter-spacing:-.025em;margin:0 0 10px}p{margin:0 0 12px;color:var(--muted)}p:last-child{margin-bottom:0}ul{margin:8px 0 12px;padding-left:22px;color:var(--muted)}li{padding:3px 0}code{overflow-wrap:anywhere;color:var(--ink)}footer{width:min(1050px,calc(100% - 36px));margin:auto;border-top:1px solid var(--line);padding:22px 0 40px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;color:var(--muted);font-size:.9rem}
+    @media(max-width:600px){.nav{align-items:flex-start;flex-direction:column}.hero{padding:36px 0}footer{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="Main navigation"><a class="brand" href="index.html">BarKey</a><div class="nav-links"><a href="about.html">About</a><a href="privacy-policy.html" aria-current="page">Privacy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></div></nav>
+  <header><div class="hero"><span class="eyebrow">Personal Android application</span><h1>Privacy Policy</h1><p class="updated"><strong>Last updated:</strong> October 29, 2026</p></div></header>
+  <main>
+    <section class="intro"><p>This policy describes the personal Android version of BarKey, package <code>net.hernow.barkey</code>. BarKey is a camera-based keyboard that scans barcodes and inserts their decoded text into the active field. It does not describe other applications or any separately maintained enterprise build.</p></section>
+    <section class="policy-section" aria-labelledby="camera"><h2 id="camera">Camera access and scanning</h2>
+      <p>BarKey requests Android Camera permission to display the rear-camera preview and scan codes. Camera frames are analyzed locally on the device with ZXing-C++ and a ZXing Core fallback. Camera frames and decoded barcode contents are not uploaded to a server.</p>
+      <p>Camera use starts while the scanner keyboard is active and stops when the keyboard is hidden, input ends, or the in-keyboard Help panel is opened. You can deny or revoke Camera permission in Android settings; scanning then remains unavailable until permission is granted.</p>
+    </section>
+    <section class="policy-section" aria-labelledby="input-method"><h2 id="input-method">Keyboard and editor context</h2>
+      <p>BarKey is an Android input method. You must explicitly enable it in Android keyboard settings and select it yourself. Android displays its standard input-method warning because a selected keyboard can interact with the focused text field. BarKey uses Android’s <code>InputConnection</code> to insert scans and perform the editing actions you request.</p>
+      <p>For Backspace and guarded Undo, BarKey may request bounded text around the cursor and selection information to verify that an operation is safe. It initially requests up to 16 characters on either side. Undo can temporarily hold the latest inserted text and a bounded snapshot of nearby editor context in memory. Password/private fields are excluded from scan Undo. The receiving application controls its editor implementation and may limit what context is available.</p>
+    </section>
+    <section class="policy-section" aria-labelledby="memory"><h2 id="memory">Temporary data, storage, and retention</h2>
+      <ul>
+        <li>Decoded text is temporarily held in memory while it is decoded and inserted into the focused field.</li>
+        <li>Duplicate suppression retains the most recently accepted scan value in memory until the active input session ends and compares repeated values during a one-second window.</li>
+        <li>Guarded Undo may retain the latest BarKey insertion and bounded surrounding cursor context in memory while it remains safely undoable.</li>
+        <li>The duplicate-suppression value is cleared when the input session ends. Undo context is cleared when the input session ends, the keyboard is hidden or switched away from, or relevant editor context changes. BarKey has no permanent barcode history and does not write scan values to logs or persistent app storage.</li>
+      </ul>
+      <p>Text inserted by BarKey becomes part of the destination field controlled by the app you are using. That app may store or transmit the text according to its own behavior and policy.</p>
+    </section>
+    <section class="policy-section" aria-labelledby="collection"><h2 id="collection">Information we collect</h2>
+      <p>BarKey does not require an account or login and contains no analytics, telemetry, advertising, advertising identifiers, or tracking SDKs. It does not collect or upload barcode values, camera frames, or editor text. The app does not include crash-reporting or analytics services.</p>
+      <p>The Android manifest does not request Internet permission or network-state permission. BarKey’s scanning and barcode decoding do not require an internet connection. Camera and editor errors may be written to Android’s local system log for troubleshooting; decoded values and camera frames are not logged.</p>
+    </section>
+    <section class="policy-section" aria-labelledby="links"><h2 id="links">Links opened by your choice</h2>
+      <p>BarKey may offer links to this policy, About information, GitHub, related projects, HernowNet, or PayPal. The app opens an external link only after you tap it, using an Android browser or another app that handles the link. The destination service then handles the visit under its own privacy practices. The locally bundled PayPal QR image itself makes no network request.</p>
+      <p>Optional PayPal donations are voluntary and are not purchases, subscriptions, or a requirement to use BarKey. Donations provide no features or benefits. BarKey does not contain a billing SDK.</p>
+    </section>
+    <section class="policy-section" aria-labelledby="children"><h2 id="children">Children</h2><p>BarKey is a general-purpose scanning keyboard and is not specifically directed to children.</p></section>
+    <section class="policy-section" aria-labelledby="changes"><h2 id="changes">Changes to this policy</h2><p>If BarKey’s data handling changes, this policy will be updated here with a revised date. The current policy applies to the personal Android BarKey application identified above.</p></section>
+    <section class="policy-section" aria-labelledby="contact"><h2 id="contact">Developer and privacy contact</h2>
+      <p><strong>Developer:</strong> Amanda Hernow.</p>
+      <p>No BarKey-specific privacy email address is currently published. For a privacy question, contact Amanda through the <a href="https://github.com/AmandaHernow/barkey/issues">BarKey GitHub issue tracker</a>. Please do not include barcode contents or other private data in a public issue.</p>
+    </section>
+  </main>
+  <footer><span>© 2026 Amanda Hernow · BarKey for Android</span><nav aria-label="Footer navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html">Privacy Policy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></nav></footer>
+</body>
+</html>

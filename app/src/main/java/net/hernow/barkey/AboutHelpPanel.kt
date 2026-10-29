@@ -2,15 +2,20 @@
 package net.hernow.barkey
 
 import android.content.Context
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.widget.FrameLayout
 import android.graphics.Typeface
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 
 /** Informational IME panel; it does not read from or write to the active editor. */
@@ -76,6 +81,27 @@ internal class AboutHelpPanel(
                 bottomMargin = dp(context, 8)
             },
         )
+        addSection(context, R.string.help_about_heading) { section ->
+            addBody(context, section, R.string.help_about_details)
+            val developer = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(context, 6), 0, dp(context, 6))
+            }
+            developer.addView(ImageView(context).apply {
+                setImageResource(R.drawable.developer_photo)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                contentDescription = context.getString(R.string.help_developer)
+            }, LinearLayout.LayoutParams(dp(context, 72), dp(context, 72)).apply { marginEnd = dp(context, 12) })
+            developer.addView(
+                text(context, R.string.help_developer, 15f, bold = true),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+            )
+            section.addView(developer)
+            addBody(context, section, R.string.help_developer_why)
+            addExternalLink(context, section, R.string.help_about_link, ABOUT_URL)
+            addExternalLink(context, section, R.string.help_privacy_link, PRIVACY_URL)
+        }
         addSection(context, R.string.help_privacy_heading) { section ->
             addPrivacyItem(context, section, R.string.help_privacy_free_title, R.string.help_privacy_free_body)
             addPrivacyItem(context, section, R.string.help_privacy_ads_title, R.string.help_privacy_ads_body)
@@ -121,9 +147,44 @@ internal class AboutHelpPanel(
             addBody(context, section, R.string.help_open_source_body)
             addBody(context, section, R.string.help_developer)
             addBody(context, section, R.string.help_original_project)
-            addBody(context, section, R.string.help_repository)
+            addExternalLink(context, section, R.string.help_repository, GITHUB_URL)
             addBody(context, section, R.string.help_license)
+            addExternalLink(context, section, R.string.help_license, LICENSE_URL)
             addBody(context, section, R.string.help_version, versionName)
+        }
+        addSection(context, R.string.help_related_heading) { section ->
+            addBody(context, section, R.string.help_project_blackjack)
+            addExternalLink(context, section, R.string.help_project_blackjack_link, BLACKJACK_URL)
+            addBody(context, section, R.string.help_project_encrypt)
+            addExternalLink(context, section, R.string.help_project_encrypt_link, ENCRYPTION_URL)
+            addBody(context, section, R.string.help_project_hernownet)
+            addExternalLink(context, section, R.string.help_project_hernownet_link, HERNOWNET_URL)
+        }
+        addSection(context, R.string.help_support_heading) { section ->
+            addBody(context, section, R.string.help_support_body)
+            section.addView(ImageView(context).apply {
+                setImageResource(R.drawable.paypal_qr)
+                contentDescription = context.getString(R.string.help_support_qr_description)
+                adjustViewBounds = true
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(context, 112), dp(context, 112)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = dp(context, 6)
+            })
+            val supportButton = Button(context).apply {
+                setText(R.string.help_support_button)
+                isAllCaps = false
+                minHeight = dp(context, 48)
+                isFocusable = false
+                isFocusableInTouchMode = false
+                setBackgroundResource(R.drawable.keyboard_button_background)
+                backgroundTintList = null
+                setTextColor(ContextCompat.getColorStateList(context, R.color.keyboard_button_text))
+                elevation = 0f
+                stateListAnimator = null
+                setOnClickListener { openExternal(context, PAYPAL_URL) }
+            }
+            section.addView(supportButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         scroll.addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -177,6 +238,28 @@ internal class AboutHelpPanel(
         })
     }
 
+    private fun addExternalLink(context: Context, section: LinearLayout, labelId: Int, url: String) {
+        val link = text(context, labelId, 14f).apply {
+            paint.isUnderlineText = true
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { openExternal(context, url) }
+        }
+        section.addView(link, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(context, 6)
+        })
+    }
+
+    private fun openExternal(context: Context, url: String) {
+        try {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, R.string.help_open_link_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun text(context: Context, stringId: Int, sizeSp: Float, value: String? = null, bold: Boolean = false): TextView =
         TextView(context).apply {
             text = if (value == null) context.getString(stringId) else context.getString(stringId, value)
@@ -194,5 +277,13 @@ internal class AboutHelpPanel(
 
     private companion object {
         const val TITLE_TAG = "about_help_title"
+        const val ABOUT_URL = "https://amandahernow.github.io/barkey/about.html"
+        const val PRIVACY_URL = "https://amandahernow.github.io/barkey/privacy-policy.html"
+        const val GITHUB_URL = "https://github.com/AmandaHernow/barkey"
+        const val LICENSE_URL = "https://github.com/AmandaHernow/barkey/blob/main/LICENSE"
+        const val BLACKJACK_URL = "https://github.com/AmandaHernow/BlackJackCounterTool"
+        const val ENCRYPTION_URL = "https://github.com/AmandaHernow/EncryptionDecryptionUtilityTool"
+        const val HERNOWNET_URL = "https://hernow.net"
+        const val PAYPAL_URL = "https://www.paypal.me/AmandaHernow"
     }
 }
