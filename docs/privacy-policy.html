@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -8,17 +8,70 @@
   <meta name="theme-color" content="#172235">
   <title>Privacy Policy | BarKey for Android</title>
   <style>
-    :root{color-scheme:light dark;--bg:#f3f6fa;--surface:#fff;--ink:#172235;--muted:#536174;--accent:#2866a8;--line:#dbe3ed;--shadow:0 12px 36px #1722350d}
-    @media(prefers-color-scheme:dark){:root{--bg:#101722;--surface:#1a2533;--ink:#eef4fb;--muted:#b7c5d6;--accent:#82b9f4;--line:#334154;--shadow:0 12px 36px #0003}}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 10% 0,#4b83bd20,transparent 38%),var(--bg);color:var(--ink);font:16px/1.72 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--accent);text-underline-offset:3px}
-    .nav{width:min(1050px,calc(100% - 36px));margin:auto;padding:20px 0;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{color:var(--ink);font-weight:800;text-decoration:none}.nav-links,footer nav{display:flex;flex-wrap:wrap;gap:18px}.nav-links a,footer a{font-size:.92rem;font-weight:650;text-decoration:none}
-    header{background:linear-gradient(125deg,#192a43,#285b8c);color:#fff}.hero{width:min(1050px,calc(100% - 36px));margin:auto;padding:46px 0}.eyebrow{color:#b8dbff;font-size:.76rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4rem);line-height:1.05;letter-spacing:-.05em;margin:10px 0}.updated{color:#e1ebf7;margin:0}
-    main{width:min(900px,calc(100% - 36px));margin:32px auto 60px}.intro,.policy-section{padding:clamp(20px,4vw,30px);margin-bottom:14px;border:1px solid var(--line);border-radius:20px;background:var(--surface);box-shadow:var(--shadow)}h2{font-size:1.35rem;line-height:1.25;letter-spacing:-.025em;margin:0 0 10px}p{margin:0 0 12px;color:var(--muted)}p:last-child{margin-bottom:0}ul{margin:8px 0 12px;padding-left:22px;color:var(--muted)}li{padding:3px 0}code{overflow-wrap:anywhere;color:var(--ink)}footer{width:min(1050px,calc(100% - 36px));margin:auto;border-top:1px solid var(--line);padding:22px 0 40px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;color:var(--muted);font-size:.9rem}
-    @media(max-width:600px){.nav{align-items:flex-start;flex-direction:column}.hero{padding:36px 0}footer{flex-direction:column}}
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6fa;
+      --surface: #fff;
+      --ink: #172033;
+      --muted: #536078;
+      --line: #dce2ec;
+      --accent: #2866a8;
+      --accent-rgb: 40, 102, 168;
+      --shadow: 0 12px 32px rgba(24, 36, 60, .07), 0 2px 6px rgba(24, 36, 60, .04);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c121c;
+        --surface: #141d2a;
+        --ink: #e8edf5;
+        --muted: #b3bfd0;
+        --line: #2c3a4d;
+        --accent: #91c4f8;
+        --accent-rgb: 112, 174, 235;
+        --shadow: 0 16px 38px rgba(0, 0, 0, .22), 0 2px 8px rgba(0, 0, 0, .16);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent); }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
+    .site-nav { display: flex; justify-content: space-between; align-items: center; gap: 18px; max-width: 1120px; margin: auto; padding: 12px clamp(18px, 4vw, 40px); }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: .92rem; font-weight: 750; text-decoration: none; }
+    .brand img { width: 36px; height: 36px; border-radius: 10px; object-fit: contain; background: #fff; }
+    .nav-links, .footer-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+    .nav-links a, .footer-nav a { display: inline-flex; align-items: center; min-height: 40px; padding: 7px 12px; border: 1px solid transparent; border-radius: 999px; color: var(--muted); font-size: .88rem; font-weight: 600; text-decoration: none; }
+    .nav-links a:hover, .footer-nav a:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
+    header { border-block: 1px solid var(--line); background: linear-gradient(125deg, rgba(var(--accent-rgb), .09), transparent 48%), radial-gradient(ellipse at 85% 5%, rgba(64, 157, 145, .08), transparent 38%), var(--bg); }
+    .hero { width: min(100% - 40px, 920px); margin: auto; padding: clamp(38px, 5vw, 58px) 0; }
+    .eyebrow { color: var(--accent); font-size: .76rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 10px 0 12px; font-size: clamp(2.3rem, 5vw, 4.1rem); line-height: 1.08; letter-spacing: -.045em; }
+    .updated { margin: 0; color: var(--muted); }
+    main { width: min(100% - 40px, 900px); margin: 0 auto; padding: clamp(28px, 5vw, 56px) 0 64px; }
+    .intro, .policy-section { margin-bottom: 14px; padding: clamp(21px, 3.4vw, 32px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+    .intro { border-color: rgba(var(--accent-rgb), .2); background: linear-gradient(135deg, rgba(var(--accent-rgb), .07), var(--surface) 72%); }
+    h2 { margin: 0 0 12px; font-size: clamp(1.2rem, 2vw, 1.42rem); line-height: 1.28; letter-spacing: -.02em; }
+    p { margin: 0 0 13px; color: var(--muted); }
+    p:last-child { margin-bottom: 0; }
+    ul { margin: 0 0 15px; padding-left: 1.25rem; color: var(--muted); }
+    li + li { margin-top: 7px; }
+    code { overflow-wrap: anywhere; color: var(--ink); }
+    footer { padding: 20px 22px 30px; color: var(--muted); font-size: .84rem; text-align: center; }
+    .footer-nav { justify-content: center; gap: 5px; margin-bottom: 10px; }
+    .footer-nav a { min-height: 38px; }
+    @media (max-width: 600px) {
+      .site-nav { align-items: flex-start; flex-direction: column; gap: 5px; padding-block: 10px; }
+      .nav-links { gap: 3px; margin-left: -10px; }
+      .hero { width: min(100% - 32px, 520px); padding: 36px 0; }
+      main { width: min(100% - 28px, 560px); padding-block: 20px 42px; }
+      .intro, .policy-section { padding: 21px 19px; border-radius: 14px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   </style>
 </head>
 <body>
-  <nav class="nav" aria-label="Main navigation"><a class="brand" href="index.html">BarKey</a><div class="nav-links"><a href="about.html">About</a><a href="privacy-policy.html" aria-current="page">Privacy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></div></nav>
+  <nav class="site-nav" aria-label="Main navigation"><a class="brand" href="index.html"><img src="assets/barkey-icon.png" alt="" width="512" height="512">BarKey</a><div class="nav-links"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html" aria-current="page">Privacy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></div></nav>
   <header><div class="hero"><span class="eyebrow">Personal Android application</span><h1>Privacy Policy</h1><p class="updated"><strong>Last updated:</strong> October 29, 2026</p></div></header>
   <main>
     <section class="intro"><p>This policy describes the personal Android version of BarKey, package <code>net.hernow.barkey</code>. BarKey is a camera-based keyboard that scans barcodes and inserts their decoded text into the active field. It does not describe other applications or any separately maintained enterprise build.</p></section>
@@ -59,6 +112,6 @@
       <p>No BarKey-specific privacy email address is currently published. For a privacy question, contact Amanda through the <a href="https://github.com/AmandaHernow/barkey/issues">BarKey GitHub issue tracker</a>. Please do not include barcode contents or other private data in a public issue.</p>
     </section>
   </main>
-  <footer><span>© 2026 Amanda Hernow · BarKey for Android</span><nav aria-label="Footer navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html">Privacy Policy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></nav></footer>
+  <footer><nav class="footer-nav" aria-label="Footer navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html">Privacy Policy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></nav>© 2026 Amanda Hernow · BarKey for Android</footer>
 </body>
 </html>

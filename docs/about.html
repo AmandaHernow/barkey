@@ -1,47 +1,161 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="BarKey — developed by Amanda Hernow. Learn about its offline scanning, privacy, open-source credits, and related projects.">
+  <meta name="description" content="About BarKey, a free offline barcode and QR scanner keyboard for Android, its privacy, developer, and related projects.">
   <meta name="author" content="Amanda Hernow">
-  <meta name="theme-color" content="#172235">
+  <meta name="theme-color" content="#f4f6fa">
   <title>About BarKey | Amanda Hernow</title>
   <style>
-    :root{color-scheme:light dark;--bg:#f3f6fa;--surface:#fff;--ink:#172235;--muted:#536174;--accent:#2866a8;--accent-soft:#e8f1fb;--line:#dbe3ed;--shadow:0 14px 40px #1722350d}
-    @media(prefers-color-scheme:dark){:root{--bg:#101722;--surface:#1a2533;--ink:#eef4fb;--muted:#b7c5d6;--accent:#82b9f4;--accent-soft:#24364b;--line:#334154;--shadow:0 14px 40px #0003}}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 10% 0,#4b83bd20,transparent 38%),var(--bg);color:var(--ink);font:16px/1.7 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--accent);text-underline-offset:3px}
-    .nav{width:min(1160px,calc(100% - 36px));margin:auto;padding:20px 0;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{color:var(--ink);font-weight:800;text-decoration:none;letter-spacing:-.025em}.nav-links{display:flex;flex-wrap:wrap;gap:18px}.nav-links a{font-size:.92rem;font-weight:650;text-decoration:none}
-    .hero{background:linear-gradient(125deg,#192a43,#285b8c);color:#fff}.hero-inner{width:min(1160px,calc(100% - 36px));min-height:360px;margin:auto;padding:54px 0;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(220px,.6fr);align-items:center;gap:48px}.eyebrow,.kicker{font-size:.76rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.eyebrow{color:#b8dbff}.hero h1{font-size:clamp(2.5rem,6vw,4.8rem);line-height:1.02;letter-spacing:-.055em;margin:12px 0 18px}.hero p{max-width:700px;color:#e1ebf7;font-size:1.12rem}.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}.facts span{padding:6px 11px;border:1px solid #ffffff55;border-radius:999px;color:#f0f6fc;font-size:.82rem}.portrait{text-align:center;margin:0}.portrait img{width:min(240px,70vw);aspect-ratio:1;object-fit:cover;border:5px solid #ffffff30;border-radius:30px;box-shadow:0 16px 44px #0004}.portrait figcaption{margin-top:10px;color:#e1ebf7}
-    main{width:min(1000px,calc(100% - 36px));margin:38px auto 64px}.flow{display:grid;gap:18px}.card{padding:clamp(22px,4vw,34px);background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}.card.accent{border-top:4px solid var(--accent)}.kicker{color:var(--accent)}h2{font-size:clamp(1.35rem,3vw,1.85rem);line-height:1.2;letter-spacing:-.035em;margin:7px 0 14px}h3{font-size:1.08rem;line-height:1.3;margin:0 0 8px}p{margin:0 0 14px;color:var(--muted)}p:last-child{margin-bottom:0}ul{margin:10px 0 0;padding-left:22px;color:var(--muted)}li{padding:3px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.developer{display:grid;grid-template-columns:112px 1fr;align-items:center;gap:22px}.developer img{width:112px;height:112px;object-fit:cover;border-radius:24px}.developer h2{margin-bottom:4px}.role{color:var(--accent);font-weight:700;font-size:.9rem;margin-bottom:8px}.project-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.pill{display:inline-flex;padding:8px 12px;border:1px solid var(--line);border-radius:999px;text-decoration:none;font-size:.9rem;font-weight:650}.support{display:grid;grid-template-columns:1fr 180px;gap:26px;align-items:center}.qr{width:170px;height:170px;object-fit:contain;background:#fff;border-radius:12px;padding:8px}.button{display:inline-flex;margin-top:12px;padding:11px 16px;background:var(--accent);border-radius:11px;color:white;text-decoration:none;font-weight:750}.note{font-size:.9rem}.footer{width:min(1000px,calc(100% - 36px));margin:0 auto;padding:24px 0 40px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;color:var(--muted);font-size:.9rem}.footer nav{display:flex;flex-wrap:wrap;gap:16px}
-    @media(max-width:700px){.nav{align-items:flex-start;flex-direction:column}.hero-inner{grid-template-columns:1fr;gap:28px;padding:42px 0}.portrait{grid-row:1}.portrait img{width:168px}.grid{grid-template-columns:1fr}.support{grid-template-columns:1fr}.qr{width:144px;height:144px}.developer{grid-template-columns:80px 1fr;gap:15px}.developer img{width:80px;height:80px}}
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6fa;
+      --surface: #fff;
+      --ink: #172033;
+      --muted: #536078;
+      --line: #dce2ec;
+      --accent: #2866a8;
+      --accent-strong: #1d4f86;
+      --accent-rgb: 40, 102, 168;
+      --shadow: 0 12px 32px rgba(24, 36, 60, .07), 0 2px 6px rgba(24, 36, 60, .04);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c121c;
+        --surface: #141d2a;
+        --ink: #e8edf5;
+        --muted: #b3bfd0;
+        --line: #2c3a4d;
+        --accent: #91c4f8;
+        --accent-strong: #b4d9ff;
+        --accent-rgb: 112, 174, 235;
+        --shadow: 0 16px 38px rgba(0, 0, 0, .22), 0 2px 8px rgba(0, 0, 0, .16);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-strong); }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
+    .site-nav { display: flex; justify-content: space-between; align-items: center; gap: 18px; max-width: 1120px; margin: auto; padding: 12px clamp(18px, 4vw, 40px); }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: .92rem; font-weight: 750; text-decoration: none; }
+    .brand img { width: 36px; height: 36px; border-radius: 10px; object-fit: contain; background: #fff; }
+    .nav-links, .footer-nav, .project-links { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+    .nav-links a, .footer-nav a { display: inline-flex; align-items: center; min-height: 40px; padding: 7px 12px; border: 1px solid transparent; border-radius: 999px; color: var(--muted); font-size: .88rem; font-weight: 600; text-decoration: none; }
+    .nav-links a:hover, .footer-nav a:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
+    .hero { border-block: 1px solid var(--line); background: linear-gradient(125deg, rgba(var(--accent-rgb), .09), transparent 48%), radial-gradient(ellipse at 85% 5%, rgba(64, 157, 145, .08), transparent 38%), var(--bg); }
+    .hero-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(100% - 40px, 920px); margin: auto; padding: clamp(42px, 6vw, 68px) 0 clamp(46px, 6vw, 72px); }
+    .hero-copy { max-width: 760px; text-align: center; }
+    .eyebrow { display: inline-block; margin-bottom: 12px; color: var(--accent); font-size: .76rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { max-width: 760px; margin: 0 auto 15px; font-size: clamp(2.3rem, 5vw, 4.1rem); font-weight: 780; line-height: 1.08; letter-spacing: -.045em; }
+    .hero-copy > p { max-width: 660px; margin: 0 auto 22px; color: var(--muted); font-size: clamp(1.05rem, 1.8vw, 1.2rem); }
+    .hero-actions, .project-links { justify-content: center; gap: 10px; }
+    .button-link, .project-links a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border: 1px solid rgba(var(--accent-rgb), .24); border-radius: 11px; background: rgba(var(--accent-rgb), .08); color: var(--ink); font-size: .9rem; font-weight: 680; text-decoration: none; }
+    .button-link.primary, .project-links a.primary { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: 0 5px 14px rgba(var(--accent-rgb), .2); }
+    .button-link:hover, .project-links a:hover { border-color: rgba(var(--accent-rgb), .44); background: rgba(var(--accent-rgb), .13); color: var(--ink); }
+    .button-link.primary:hover, .project-links a.primary:hover { border-color: var(--accent-strong); background: var(--accent-strong); color: #fff; }
+    .hero-facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
+    .hero-facts span { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.45); color: var(--muted); font-size: .78rem; font-weight: 600; }
+    @media (prefers-color-scheme: dark) { .hero-facts span { background: rgba(255,255,255,.035); } .button-link.primary, .project-links a.primary { color: #101722; } }
+    .hero-portrait { display: flex; flex-direction: column; align-items: center; width: 100%; margin: 0 0 4px; }
+    .hero-photo-frame { display: grid; width: 156px; height: 156px; place-items: center; overflow: hidden; border: 4px solid var(--surface); border-radius: 50%; background: var(--surface); box-shadow: 0 4px 24px rgba(0, 0, 0, .16), 0 0 0 1px var(--line); }
+    .hero-photo { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center; }
+    .portrait-caption { margin: 12px 0 0; color: var(--muted); font-size: .88rem; line-height: 1.45; text-align: center; }
+    .portrait-caption strong { color: var(--ink); font-size: 1rem; }
+    .content { width: min(100% - 40px, 900px); margin: 0 auto; padding: clamp(28px, 5vw, 56px) 0 64px; }
+    .content-flow { display: grid; gap: 18px; }
+    .card { min-width: 0; padding: clamp(21px, 3.4vw, 32px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+    .card h2, .card h3 { margin: 0 0 12px; color: var(--ink); line-height: 1.28; }
+    .card h2 { font-size: clamp(1.2rem, 2vw, 1.42rem); letter-spacing: -.02em; }
+    .card h3 { font-size: 1.02rem; }
+    .card p { margin: 0 0 13px; color: var(--muted); }
+    .card p:last-child { margin-bottom: 0; }
+    .card ul { margin: 0 0 15px; padding-left: 1.25rem; color: var(--muted); }
+    .card li + li { margin-top: 7px; }
+    .card-accent { border-color: rgba(var(--accent-rgb), .2); background: linear-gradient(135deg, rgba(var(--accent-rgb), .07), var(--surface) 72%); }
+    .section-kicker { display: block; margin-bottom: 8px; color: var(--accent); font-size: .72rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+    .two-up { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .developer-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 22px; }
+    .developer-photo { display: block; width: 96px; height: 96px; border: 3px solid var(--surface); border-radius: 50%; object-fit: cover; box-shadow: 0 3px 14px rgba(0, 0, 0, .14), 0 0 0 1px var(--line); }
+    .card .developer-name { margin: 0 0 2px; font-size: 1.25rem; }
+    .card .developer-role { margin: 0 0 10px; color: var(--accent); font-size: .88rem; font-weight: 650; }
+    .projects-section { padding: clamp(22px, 3.5vw, 34px); border: 1px solid rgba(var(--accent-rgb), .2); border-radius: 18px; background: linear-gradient(140deg, rgba(var(--accent-rgb), .055), var(--surface) 60%); box-shadow: var(--shadow); }
+    .projects-heading { margin-bottom: 18px; }
+    .projects-heading h2 { margin: 0 0 5px; font-size: clamp(1.3rem, 2vw, 1.55rem); }
+    .projects-heading p { margin: 0; color: var(--muted); font-size: .92rem; }
+    .project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .project-card { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 13px; padding: clamp(17px, 2.6vw, 24px); border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 3px 12px rgba(18, 30, 52, .045); }
+    .project-card-heading { display: flex; min-width: 0; align-items: center; gap: 13px; }
+    .project-icon-link { display: grid; width: 66px; height: 66px; flex: none; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+    .project-icon { display: block; width: 100%; height: 100%; padding: 4px; object-fit: contain; }
+    .project-card-heading h3 { min-width: 0; margin: 0; font-size: 1rem; }
+    .project-card-heading h3 a { color: var(--ink); text-decoration: none; }
+    .project-card-heading h3 a:hover { color: var(--accent); text-decoration: underline; }
+    .project-card > p { margin: 0; font-size: .92rem; }
+    .project-links { justify-content: flex-start; gap: 8px; margin-top: auto; padding-top: 2px; }
+    .project-links a { min-height: 40px; padding: 8px 12px; font-size: .84rem; }
+    .support-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: clamp(20px, 4vw, 42px); background: linear-gradient(125deg, rgba(var(--accent-rgb), .07), var(--surface) 72%); }
+    .support-copy { max-width: 540px; }
+    .support-copy > p { color: var(--muted); }
+    .support-visual { display: flex; width: 190px; flex-direction: column; align-items: center; gap: 11px; }
+    .support-qr { display: block; width: min(164px, 100%); height: auto; padding: 8px; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: 0 4px 16px rgba(20, 30, 50, .09); }
+    .support-visual .button-link { width: 100%; text-align: center; }
+    .small { font-size: .83rem; }
+    footer { padding: 20px 22px 30px; color: var(--muted); font-size: .84rem; text-align: center; }
+    .footer-nav { justify-content: center; gap: 5px; margin-bottom: 10px; }
+    .footer-nav a { min-height: 38px; }
+    @media (max-width: 760px) { .two-up, .project-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) {
+      .site-nav { align-items: flex-start; flex-direction: column; gap: 5px; padding-block: 10px; }
+      .nav-links { gap: 3px; margin-left: -10px; }
+      .hero-inner { gap: 13px; width: min(100% - 32px, 520px); padding-block: 36px 42px; }
+      .hero-photo-frame { width: 136px; height: 136px; }
+      .content { width: min(100% - 28px, 560px); padding-block: 20px 42px; }
+      .content-flow, .two-up { gap: 12px; }
+      h1 { font-size: clamp(1.85rem, 8vw, 2.5rem); }
+      .card { padding: 21px 19px; border-radius: 14px; }
+      .developer-card { grid-template-columns: 72px minmax(0, 1fr); align-items: start; gap: 16px; }
+      .developer-photo { width: 72px; height: 72px; }
+      .projects-section { padding: 19px 16px; border-radius: 15px; }
+      .project-card { padding: 17px; }
+      .project-icon-link { width: 58px; height: 58px; }
+      .support-card { grid-template-columns: 1fr; gap: 18px; }
+      .support-visual { width: min(100%, 240px); justify-self: center; }
+      .support-qr { width: 164px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   </style>
 </head>
 <body>
-  <nav class="nav" aria-label="Main navigation">
-    <a class="brand" href="index.html">BarKey</a>
-    <div class="nav-links"><a href="about.html" aria-current="page">About</a><a href="privacy-policy.html">Privacy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></div>
+  <nav class="site-nav" aria-label="Main navigation">
+    <a class="brand" href="index.html"><img src="assets/barkey-icon.png" alt="" width="512" height="512">BarKey</a>
+    <div class="nav-links"><a href="index.html">Home</a><a href="about.html" aria-current="page">About</a><a href="privacy-policy.html">Privacy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></div>
   </nav>
   <header class="hero">
     <div class="hero-inner">
-      <div>
-        <span class="eyebrow">Free · Private · Android</span>
-        <h1>BarKey</h1>
-        <p class="role">Developed by Amanda Hernow</p>
-        <p>A barcode and QR scanner keyboard for Android. Scan a code with the rear camera and place its value directly into the text field you’re working in.</p>
-        <div class="facts"><span>No account</span><span>No ads or tracking</span><span>On-device scanning</span><span>Apache 2.0</span></div>
+      <div class="hero-copy">
+        <span class="eyebrow">Free · Offline · Open source</span>
+        <h1>About BarKey</h1>
+        <p>A barcode and QR scanner built into an Android keyboard, so a scan can go straight into the field you are using.</p>
+        <div class="hero-actions"><a class="button-link primary" href="https://github.com/AmandaHernow/barkey">View BarKey on GitHub</a><a class="button-link" href="privacy-policy.html">Read the Privacy Policy</a></div>
+        <div class="hero-facts"><span>No account</span><span>No ads or tracking</span><span>On-device scanning</span><span>Apache 2.0</span></div>
       </div>
-      <figure class="portrait"><img src="assets/amanda.jpg" alt="Amanda Hernow, independent developer of BarKey" width="640" height="640"><figcaption><strong>Amanda Hernow</strong><br>Independent developer</figcaption></figure>
+      <figure class="hero-portrait">
+        <div class="hero-photo-frame"><img class="hero-photo" src="assets/amanda.jpg" alt="Amanda Hernow, independent developer of BarKey" width="640" height="640" fetchpriority="high"></div>
+        <figcaption class="portrait-caption"><strong>Amanda Hernow</strong><br>Independent Developer</figcaption>
+      </figure>
     </div>
   </header>
-  <main>
-    <div class="flow">
-      <section class="card accent" aria-labelledby="what">
-        <span class="kicker">About the project</span><h2 id="what">A camera scanner where you type</h2>
+  <main class="content">
+    <div class="content-flow">
+      <section class="card card-accent" aria-labelledby="what">
+        <span class="section-kicker">About the project</span><h2 id="what">A camera scanner where you type</h2>
         <p>BarKey is a free Android Input Method Editor (IME). After you enable it in Android settings and select it from the keyboard picker, focus a text field and point the rear camera at a barcode. BarKey decodes each frame on the device and inserts the result at the active cursor through Android’s input-method connection. It does not use the clipboard or keep a scan history.</p>
         <p>Fast mode is the default for ordinary printed codes. Accurate mode applies additional processing for difficult, angled, damaged, or inverted labels and can take longer. Tap the preview to request focus and exposure at that point; a torch control appears when the camera supports flash.</p>
       </section>
-      <section class="card" aria-labelledby="features"><span class="kicker">Features</span><h2 id="features">Scanning and editing tools</h2>
+      <section class="card" aria-labelledby="features"><span class="section-kicker">Features</span><h2 id="features">Scanning and editing tools</h2>
         <ul>
           <li>QR Code, Micro QR, rMQR, Data Matrix, Aztec, PDF417, MicroPDF417 and MaxiCode.</li>
           <li>UPC-A, UPC-E, EAN-8, EAN-13, Code 39, Code 93, Code 128, ITF and Codabar.</li>
@@ -49,46 +163,71 @@
           <li>One-level guarded Undo, repeating Backspace, Space, Left, Right, Tab and Enter controls.</li>
           <li>Docked, resizable keyboard with portrait and landscape layouts and light and dark appearance.</li>
         </ul>
-        <p class="note">Supported formats are configured in the app. Camera behavior and editor actions can vary by device and the application containing the text field.</p>
+        <p>Supported formats are configured in the app. Camera behavior and editor actions can vary by device and the application containing the text field.</p>
       </section>
-      <div class="grid">
-        <section class="card" aria-labelledby="why"><span class="kicker">The thinking behind it</span><h2 id="why">Useful software should stay accessible</h2>
+      <div class="two-up">
+        <section class="card" aria-labelledby="why"><span class="section-kicker">The thinking behind it</span><h2 id="why">Useful software should stay accessible</h2>
           <p>I create free software because useful tools should not require an account, an unnecessary subscription, or a stream of advertisements. In my own applications, I oppose unnecessary subscriptions, advertising, tracking, and paywalls. BarKey has no paid features; an optional donation does not unlock anything.</p>
         </section>
-        <section class="card" aria-labelledby="privacy"><span class="kicker">Privacy by design</span><h2 id="privacy">Local scanning, clear boundaries</h2>
+        <section class="card" aria-labelledby="privacy"><span class="section-kicker">Privacy by design</span><h2 id="privacy">Local scanning, clear boundaries</h2>
           <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan and Undo data is held in memory only as needed by the active input session.</p>
           <a href="privacy-policy.html">Read the Android app Privacy Policy</a>
         </section>
       </div>
-      <section class="card developer" aria-labelledby="developer">
-        <img src="assets/amanda.jpg" alt="Amanda Hernow" width="640" height="640" loading="lazy">
-        <div><span class="kicker">About the developer</span><h2 id="developer">Amanda Hernow</h2><p class="role">Independent developer</p><p>I build practical software with privacy as a default, not an expensive extra. I aim to explain what my applications do, how they handle data, and where their limits are.</p></div>
+      <section class="card developer-card" aria-labelledby="developer">
+        <img class="developer-photo" src="assets/amanda.jpg" alt="Amanda Hernow" width="640" height="640" loading="lazy" decoding="async">
+        <div><span class="section-kicker">About the developer</span><h2 class="developer-name" id="developer">Amanda Hernow</h2><p class="developer-role">Independent Developer</p><p>I build practical software with privacy as a default, not an expensive extra. I aim to explain what my applications do, how they handle data, and where their limits are.</p></div>
       </section>
-      <section class="card" aria-labelledby="origin"><span class="kicker">Open source</span><h2 id="origin">Open Source &amp; Credits</h2>
+      <section class="card" aria-labelledby="origin"><span class="section-kicker">Open source</span><h2 id="origin">Open Source &amp; Credits</h2>
         <p>BarKey — developed by Amanda Hernow — is licensed under the Apache License 2.0. Barcode decoding runs locally with <a href="https://github.com/zxing-cpp/zxing-cpp">ZXing-C++ Android 3.1.1</a> as the primary decoder and <a href="https://github.com/zxing/zxing">ZXing Core 3.5.4</a> as a Java fallback. Both projects use Apache License 2.0.</p>
         <p><a href="https://github.com/androidx/androidx">AndroidX CameraX</a> provides camera capture and preview; AndroidX Core and Lifecycle provide Android application support. <a href="https://github.com/google/guava">Google Guava 33.7.2-android</a> is a CameraX support dependency pinned by BarKey. These libraries use Apache License 2.0; CameraX camera-core artifact metadata also declares BSD-3-Clause material. The app’s test-only JUnit 4.13.2 dependency is licensed under <a href="https://www.eclipse.org/legal/epl-v10.html">Eclipse Public License 1.0</a>.</p>
         <p>See the project <a href="https://github.com/AmandaHernow/barkey/blob/main/NOTICE">NOTICE</a> for attribution information, and its <a href="https://github.com/AmandaHernow/barkey/blob/main/LICENSE">LICENSE</a> for the licence applying to BarKey.</p>
-        <div class="project-links"><a class="pill" href="https://github.com/AmandaHernow/barkey">BarKey source on GitHub</a><a class="pill" href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 licence</a><a class="pill" href="https://opensource.org/license/bsd-3-clause/">BSD 3-Clause licence</a><a class="pill" href="https://github.com/zxing-cpp/zxing-cpp/blob/master/LICENSE">ZXing-C++ licence</a><a class="pill" href="https://github.com/zxing/zxing/blob/master/LICENSE">ZXing Core licence</a><a class="pill" href="https://github.com/google/guava/blob/master/LICENSE">Guava licence</a></div>
+        <div class="project-links"><a href="https://github.com/AmandaHernow/barkey">BarKey source on GitHub</a><a href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 licence</a><a href="https://opensource.org/license/bsd-3-clause/">BSD 3-Clause licence</a><a href="https://github.com/zxing-cpp/zxing-cpp/blob/master/LICENSE">ZXing-C++ licence</a><a href="https://github.com/zxing/zxing/blob/master/LICENSE">ZXing Core licence</a><a href="https://github.com/google/guava/blob/master/LICENSE">Guava licence</a></div>
       </section>
-      <section class="card" aria-labelledby="projects"><span class="kicker">Also by me</span><h2 id="projects">Related projects</h2>
-        <div class="grid">
-          <article><h3><a href="https://github.com/AmandaHernow/BlackJackCounterTool">Blackjack Counter Tool</a></h3><p>A free card-counting practice tool with multiple counting systems and transparent calculations.</p></article>
-          <article><h3><a href="https://github.com/AmandaHernow/EncryptionDecryptionUtilityTool">Encrypt &amp; Decrypt Utility</a></h3><p>A separate utility project for text encryption and decryption.</p></article>
-          <article><h3><a href="https://hernow.net">HernowNet</a></h3><p>Amanda’s personal software website.</p></article>
+      <section class="projects-section" aria-labelledby="projects">
+        <div class="projects-heading"><span class="section-kicker">Also by me</span><h2 id="projects">Other projects</h2><p>Independent projects with their own purposes, features, and privacy details.</p></div>
+        <div class="project-grid">
+          <article class="project-card" aria-labelledby="encryption-project">
+            <div class="project-card-heading">
+              <a class="project-icon-link" href="https://amandahernow.github.io/EncryptionDecryptionUtilityTool/" target="_blank" rel="noopener noreferrer" aria-label="Open Encrypt &amp; Decrypt Utility"><img class="project-icon" src="assets/encryption-utility-icon.png" alt="Encrypt &amp; Decrypt Utility icon" width="1024" height="1024" loading="lazy"></a>
+              <h3 id="encryption-project"><a href="https://amandahernow.github.io/EncryptionDecryptionUtilityTool/" target="_blank" rel="noopener noreferrer">Encrypt &amp; Decrypt Utility</a></h3>
+            </div>
+            <p>A free browser utility for AES-256-GCM text encryption and decryption, processed locally on the device.</p>
+            <div class="project-links"><a class="primary" href="https://amandahernow.github.io/EncryptionDecryptionUtilityTool/" target="_blank" rel="noopener noreferrer">Visit website</a><a href="https://github.com/AmandaHernow/EncryptionDecryptionUtilityTool" target="_blank" rel="noopener noreferrer">GitHub repository</a></div>
+          </article>
+          <article class="project-card" aria-labelledby="hernownet-project">
+            <div class="project-card-heading">
+              <a class="project-icon-link" href="https://hernow.net" target="_blank" rel="noopener noreferrer" aria-label="Visit HernowNet"><img class="project-icon" src="assets/hernownet-icon.png" alt="HernowNet project icon" width="512" height="512" loading="lazy"></a>
+              <h3 id="hernownet-project"><a href="https://hernow.net" target="_blank" rel="noopener noreferrer">HernowNet</a></h3>
+            </div>
+            <p>A separate privacy-focused software project and personal platform for encrypted tools, including Note Vault. It is under active development.</p>
+            <div class="project-links"><a class="primary" href="https://hernow.net" target="_blank" rel="noopener noreferrer">Visit website</a><a href="https://hernow.net/about" target="_blank" rel="noopener noreferrer">About HernowNet</a></div>
+          </article>
+          <article class="project-card" aria-labelledby="blackjack-project">
+            <div class="project-card-heading">
+              <a class="project-icon-link" href="https://amandahernow.github.io/BlackJackCounterTool/BJCounterTool.html" target="_blank" rel="noopener noreferrer" aria-label="Open Blackjack Counter Tool"><img class="project-icon" src="assets/blackjack-counter-icon.png" alt="Blackjack Counter Tool icon" width="512" height="512" loading="lazy"></a>
+              <h3 id="blackjack-project"><a href="https://amandahernow.github.io/BlackJackCounterTool/BJCounterTool.html" target="_blank" rel="noopener noreferrer">Blackjack Counter Tool</a></h3>
+            </div>
+            <p>A free educational practice tool for learning and comparing blackjack card-counting systems.</p>
+            <div class="project-links"><a class="primary" href="https://amandahernow.github.io/BlackJackCounterTool/BJCounterTool.html" target="_blank" rel="noopener noreferrer">Visit website</a><a href="https://github.com/AmandaHernow/BlackJackCounterTool" target="_blank" rel="noopener noreferrer">GitHub repository</a></div>
+          </article>
         </div>
       </section>
-      <section class="card support" aria-labelledby="support">
-        <div><span class="kicker">Optional support</span><h2 id="support">Help keep development going</h2>
+      <section class="card support-card" aria-labelledby="support">
+        <div class="support-copy"><span class="section-kicker">Optional support</span><h2 id="support">Help keep development going</h2>
           <p>BarKey is free to use. If you want to support independent development, you can optionally buy Amanda a coffee through PayPal. A donation is voluntary and does not provide features, access, or other benefits. BarKey remains fully usable without donating. PayPal is a separate service and applies its own privacy practices.</p>
-          <a class="button" href="https://www.paypal.me/AmandaHernow">Buy Me a Coffee via PayPal</a>
+          <p class="small">There are no paid features, subscriptions, or locked functionality. Donations are optional and never required to use BarKey.</p>
         </div>
-        <a href="https://www.paypal.me/AmandaHernow" aria-label="Open Amanda Hernow’s PayPal donation page"><img class="qr" src="assets/paypal-qr.png" alt="Optional PayPal donation QR code" width="444" height="444" loading="lazy"></a>
+        <div class="support-visual">
+          <img class="support-qr" src="assets/paypal-qr.png" alt="QR code linking to Amanda Hernow’s PayPal donation page" width="444" height="444" loading="lazy" decoding="async">
+          <a class="button-link primary" href="https://www.paypal.me/AmandaHernow" target="_blank" rel="noopener noreferrer">Buy Me a Coffee via PayPal</a>
+        </div>
       </section>
-      <section class="card" aria-labelledby="contact"><span class="kicker">Contact</span><h2 id="contact">Questions and feedback</h2>
+      <section class="card" aria-labelledby="contact"><span class="section-kicker">Contact</span><h2 id="contact">Questions and feedback</h2>
         <p>No BarKey-specific email address is currently published. For support or privacy questions, contact Amanda through the <a href="https://github.com/AmandaHernow/barkey/issues">BarKey GitHub issue tracker</a>. Do not include private barcode data in public issues.</p>
       </section>
     </div>
   </main>
-  <footer class="footer"><span>© 2026 Amanda Hernow · BarKey is open source under Apache 2.0.</span><nav aria-label="Footer navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html">Privacy Policy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></nav></footer>
+  <footer><nav class="footer-nav" aria-label="Footer navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html">Privacy Policy</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></nav>© 2026 Amanda Hernow · BarKey is open source under Apache 2.0.</footer>
 </body>
 </html>
