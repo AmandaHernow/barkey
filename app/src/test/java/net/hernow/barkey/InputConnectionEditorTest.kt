@@ -247,10 +247,13 @@ class InputConnectionEditorTest {
                 inputType = InputType.TYPE_CLASS_TEXT
                 imeOptions = action
             }
+            val committedBefore = connection.committedText.toList()
+            val actionsBefore = connection.actions.toList()
+            val keyEventsBefore = connection.keyEvents.toList()
             assertFalse(editor.nextField(connection, info))
-            assertTrue(connection.actions.isEmpty())
-            assertTrue(connection.keyEvents.isEmpty())
-            assertTrue(connection.committedText.isEmpty())
+            assertEquals(committedBefore, connection.committedText)
+            assertEquals(actionsBefore, connection.actions)
+            assertEquals(keyEventsBefore, connection.keyEvents)
             assertTrue(editor.canUndo(connection, 1L))
         }
         assertFalse(editor.nextField(FakeEditorConnection(), null))
