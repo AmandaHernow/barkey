@@ -10,7 +10,13 @@
 
 **Repository:** [github.com/AmandaHernow/barkey](https://github.com/AmandaHernow/barkey)
 
-**Website:** [Home](https://amandahernow.github.io/barkey/) · [About BarKey](https://amandahernow.github.io/barkey/about.html) · [Privacy Policy](https://amandahernow.github.io/barkey/privacy-policy.html)
+## Website and search
+
+- [Live BarKey website](https://amandahernow.github.io/barkey/)
+- [About BarKey](https://amandahernow.github.io/barkey/about.html)
+- [XML sitemap](https://amandahernow.github.io/barkey/sitemap.xml)
+- [HTML sitemap](https://amandahernow.github.io/barkey/sitemap.html)
+- [Privacy Policy](https://amandahernow.github.io/barkey/privacy-policy.html)
 
 **Support:** [barkey.support@hernow.net](mailto:barkey.support@hernow.net)
 
