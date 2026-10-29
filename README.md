@@ -20,7 +20,9 @@ BarKey is an independent, actively maintained application developed from Raphael
 
 - Scan QR codes and supported one-dimensional and two-dimensional barcode formats using the device's rear camera.
 - Insert decoded text directly into the focused field through Android's `InputConnection`; no clipboard transfer is used.
-- Decode frames locally and offline with ZXing Core. Supported formats configured in the decoder: QR Code, Data Matrix, Aztec, PDF417, UPC-A, UPC-E, EAN-8, EAN-13, Code 39, Code 93, Code 128, ITF, Codabar, RSS-14, RSS Expanded and MaxiCode.
+- Decode frames locally and offline with ZXing-C++ Android 3.1.1, with ZXing Core as a compatibility fallback. Configured formats include QR Code, Micro QR, rMQR, Data Matrix, Aztec, PDF417, MicroPDF417, UPC-A, UPC-E, EAN-8, EAN-13, Code 39, Code 93, Code 128, ITF, Codabar, MaxiCode, RSS-14/DataBar and RSS Expanded/DataBar Expanded, plus GS1 DataBar Omni, Stacked, Stacked Omni, Limited and Expanded Stacked.
+- Choose Fast mode for normal, clearly printed barcodes or Accurate mode for difficult, angled, damaged or inverted labels. Fast is the default; Accurate may take longer.
+- Tap anywhere on the camera preview to request autofocus and exposure metering at that point. A torch control appears in the preview only when the bound camera supports flash.
 - Follow Android's system light and dark appearance.
 - Provide portrait and landscape layouts for phones and tablets, with a docked, non-fullscreen IME and a camera preview sized to the available keyboard window.
 - Include Undo, Backspace, Space, Left, Right, Tab and Enter editing controls, plus controls to switch keyboards or hide BarKey.
@@ -66,6 +68,8 @@ BarKey is not Direct Boot aware. Android's warning that an enabled IME may be un
 | Switch Keyboard | Returns to a previously used enabled keyboard where Android supports that, or opens the system keyboard picker. It does not assume a particular keyboard app. |
 | Hide Keyboard | Hides BarKey. |
 
+The scanner status row contains the Fast/Accurate mode button immediately to the left of **?**. The button label always shows the active mode. Mode selection is held only for the current keyboard service lifetime and resets to Fast when that service is recreated. Tap the preview to focus at that location. On devices with flash, tap the flashlight control at the preview's upper-left to switch the torch on or off; BarKey turns it off when the keyboard closes or Help is opened.
+
 Android `InputConnection` support varies among native fields, Chrome forms and WebView/custom forms. In particular, editor actions, surrounding-text queries, key events and field navigation may be unavailable or interpreted differently by the host. BarKey avoids speculative focus changes and disables unsafe Undo, but no universal compatibility with every form can be promised. The managed `scan_suffix` is the only action triggered automatically after a scan; interactive Enter and Tab controls do not run automatically.
 
 ## Android compatibility
@@ -73,6 +77,8 @@ Android `InputConnection` support varies among native fields, Chrome forms and W
 The current app configuration is **minimum SDK 24**, **target SDK 37** and **compile SDK 37**. These values describe the source configuration, not a guarantee that every device running those API levels has been tested. The layout supports phone and tablet configurations in portrait and landscape and follows Android's system light/dark appearance; planned device testing remains outstanding. The configured AGP version is 9.4.1 while the Kotlin Gradle Plugin compatibility table currently lists full support through AGP 9.3.1 for KGP 2.4.21. Validate Gradle sync/build in the stated Android Studio environment and reconcile versions if the toolchain reports incompatibility; this migration does not change dependencies or build-tool versions.
 
 The IME requests a docked window and disables fullscreen extract mode. Its own height and preview adapt to available window dimensions, but BarKey cannot dictate how a third-party host resizes or pans its form above an IME. Host soft-input and inset handling can affect what remains visible. Camera availability in an Android Studio emulator depends on its virtual camera configuration. A virtual rear camera may be absent or behave differently from physical hardware; camera decoding and Lenovo-specific behaviour must be validated on a configured emulator and target tablet. For an initial emulator check, build/install the debug APK from Android Studio, enable BarKey in the emulator's keyboard settings, focus a native text field, select BarKey with the IME picker, and exercise the permission flow and controls. Configure a virtual rear-camera scene in the AVD settings to test preview/decoding; otherwise, an unavailable-camera status is expected. Emulator success does not validate physical camera behaviour or Intune policy.
+
+The ZXing-C++ 3.1.1 Android AAR includes native libraries for `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64`; 64-bit ARM and x86 devices are covered by `arm64-v8a` and `x86_64`. No app-level ABI filter is configured. The upstream Android wrapper enables 16 KB maximum page-size alignment for native binaries.
 
 ## Developer build instructions
 
@@ -90,6 +96,7 @@ The checked-in project currently specifies:
 | CameraX | 1.6.2 |
 | AndroidX Lifecycle / Core | 2.11.0 / 1.19.1 |
 | ZXing Core | 3.5.4 |
+| ZXing-C++ Android | 3.1.1 |
 | Guava Android | 33.7.2-android |
 | JUnit | 4.13.2 (test dependency) |
 
@@ -124,7 +131,7 @@ BarKey is under active development. Version 1.0 is the initial BarKey-branded de
 
 BarKey was developed from Raphael Michel's [Android Barcode Keyboard](https://github.com/raphaelm/android-barcode-keyboard), originally released under the Apache License 2.0 in 2020. BarKey has since been substantially redesigned and further developed. The original author is credited for the original work; BarKey's later modifications are attributed separately to Amanda Hernow.
 
-The app uses [ZXing Core](https://github.com/zxing/zxing) for barcode decoding, AndroidX and CameraX for Android camera/UI functionality, and Guava as a dependency. These components are distributed under Apache License 2.0. JUnit 4.13.2 is used only as a test dependency and is licensed under [Eclipse Public License 1.0](https://www.eclipse.org/legal/epl-v10.html). See the project [NOTICE](NOTICE) for attribution details and [LICENSE](LICENSE) for the licence applying to BarKey's project distribution.
+The scanner uses [ZXing-C++ Android 3.1.1](https://github.com/zxing-cpp/zxing-cpp) as its primary local decoder and retains [ZXing Core](https://github.com/zxing/zxing) as a compatibility fallback. It offers Fast and Accurate scanning modes, tap-to-focus and an optional torch on devices with flash hardware. Both decoders run on-device; no scanned data is sent over the network. AndroidX and CameraX provide Android camera/UI functionality, and Guava is a dependency. These components are distributed under Apache License 2.0. JUnit 4.13.2 is used only as a test dependency and is licensed under [Eclipse Public License 1.0](https://www.eclipse.org/legal/epl-v10.html). See the project [NOTICE](NOTICE) for attribution details and [LICENSE](LICENSE) for the licence applying to BarKey's project distribution.
 
 ## Copyright and licence
 
@@ -136,7 +143,7 @@ Licensed under the [Apache License, Version 2.0](LICENSE).
 
 BarKey is based on [Android Barcode Keyboard](https://github.com/raphaelm/android-barcode-keyboard) by Raphael Michel (2020), with substantial modifications and further development by Amanda Hernow (2026).
 
-Barcode decoding uses [ZXing](https://github.com/zxing/zxing), licensed under Apache License 2.0.
+Barcode decoding uses [ZXing](https://github.com/zxing/zxing) and [ZXing-C++](https://github.com/zxing-cpp/zxing-cpp), both licensed under Apache License 2.0.
 
 ## Developer
 

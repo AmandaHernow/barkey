@@ -47,6 +47,7 @@ dependencies {
     implementation 'androidx.camera:camera-view:1.6.2'
     implementation 'androidx.lifecycle:lifecycle-runtime:2.11.0'
     implementation 'com.google.zxing:core:3.5.4'
+    implementation 'io.github.zxing-cpp:android:3.1.1'
     // CameraX brings Guava transitively; pin the Android variant past GHSA-xxph-c9ww-hj94.
     implementation 'com.google.guava:guava:33.7.2-android'
 

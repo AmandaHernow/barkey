@@ -9,6 +9,7 @@
     <string name="scanner_keyboard_description">Barcode scanner keyboard</string>
     <string name="camera_preview_description">Rear camera preview for barcode scanning</string>
     <string name="scanner_status_description">Scanner status</string>
+    <string name="camera_preview_tap_to_focus">Camera preview. Tap to focus at that location.</string>
     <string name="scanner_ready">Ready to scan. Point the rear camera at a barcode or QR code.</string>
     <string name="camera_permission_required">Camera permission is needed to scan. Tap Enable Camera and allow access.</string>
     <string name="camera_permission_settings_required">Camera permission is off. Open app settings and allow Camera to scan.</string>
@@ -22,6 +23,14 @@
     <string name="enable_camera">Enable Camera</string>
     <string name="open_camera_settings">Open Camera Settings</string>
     <string name="retry_camera">Retry Camera</string>
+    <string name="scan_mode_fast">Fast</string>
+    <string name="scan_mode_accurate">Accurate</string>
+    <string name="scan_mode_fast_accessibility">Scanning mode Fast. Double tap to switch to Accurate.</string>
+    <string name="scan_mode_accurate_accessibility">Scanning mode Accurate. Double tap to switch to Fast.</string>
+    <string name="torch_turn_on">Torch off. Double tap to turn on.</string>
+    <string name="torch_turn_off">Torch on. Double tap to turn off.</string>
+    <string name="torch_activation_failed">Torch could not be changed. Try again.</string>
+    <string name="scanner_decoder_unavailable">Barcode decoding is unavailable. Reopen the scanner keyboard to try again.</string>
     <string name="switch_keyboard">Switch Keyboard</string>
     <string name="keyboard_switch_unavailable">Keyboard switching is unavailable. Use the Android keyboard picker.</string>
     <string name="hide_keyboard_label">Hide Keyboard</string>
@@ -71,6 +80,10 @@
     <string name="help_step_4">4. Point the rear camera at a barcode or QR code.</string>
     <string name="help_step_5">5. BarKey inserts the scanned value at the cursor in that field.</string>
     <string name="help_step_6">6. Use the editing and navigation controls to continue working.</string>
+    <string name="help_scan_mode_fast">Fast — The default mode. Prioritises quick scanning of normal, clearly printed barcodes.</string>
+    <string name="help_scan_mode_accurate">Accurate — Uses additional processing for difficult, angled, damaged or inverted barcodes. It may be slower.</string>
+    <string name="help_tap_to_focus">Tap to focus — Tap the camera preview to request focus at that location.</string>
+    <string name="help_torch">Torch — On supported devices, tap the flashlight icon to illuminate the scanning area.</string>
     <string name="help_control_undo">Undo — Safely undo the latest BarKey insertion when the field and cursor context are unchanged. Undo is unavailable when safety cannot be verified.</string>
     <string name="help_control_cursor">Left / Right — Move the cursor within the current field.</string>
     <string name="help_control_backspace">Backspace — Delete the selection or the character before the cursor.</string>

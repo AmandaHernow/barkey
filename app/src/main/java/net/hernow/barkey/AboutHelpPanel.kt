@@ -103,6 +103,12 @@ internal class AboutHelpPanel(
                 R.string.help_control_enter,
                 R.string.help_control_switch,
             ).forEach { addBody(context, section, it) }
+            listOf(
+                R.string.help_scan_mode_fast,
+                R.string.help_scan_mode_accurate,
+                R.string.help_tap_to_focus,
+                R.string.help_torch,
+            ).forEach { addBody(context, section, it) }
             addBody(context, section, R.string.help_navigation_note)
         }
         addSection(context, R.string.help_permissions_heading) { section ->

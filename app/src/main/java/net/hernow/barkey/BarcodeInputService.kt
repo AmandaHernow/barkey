@@ -21,8 +21,10 @@ import android.util.Size
 import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewTreeObserver
+import android.view.ViewConfiguration
 import android.view.Window
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -31,10 +33,13 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraState
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
@@ -62,6 +67,10 @@ class BarcodeInputService : InputMethodService() {
     private val cameraLifecycle by lazy { ServiceCameraLifecycle() }
     private val analyzerExecutor by lazy { Executors.newSingleThreadExecutor() }
     private val inputEditor = InputConnectionEditor()
+    private val scanModes = ScanModeController()
+    private val barcodeDecoder = HybridBarcodeDecoder()
+    private val decodeTiming = DecodeTimingRecorder()
+    private val torchState = TorchStateController()
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var previewUseCase: Preview? = null
@@ -76,7 +85,10 @@ class BarcodeInputService : InputMethodService() {
     @Volatile
     private var helpVisible = false
     private var helpButton: Button? = null
+    private var scanModeButton: Button? = null
     private var cameraFrame: FrameLayout? = null
+    private var torchButton: ImageButton? = null
+    private var activeCamera: Camera? = null
     private var developerSignature: TextView? = null
     private var themedButtons: List<Button> = emptyList()
     private var toolbarButtons: List<Button> = emptyList()
@@ -90,6 +102,7 @@ class BarcodeInputService : InputMethodService() {
     @Volatile
     private var resultCallbackToken: Any = Any()
     private var currentSuffix = ScanSuffix.NONE
+    @Volatile
     private var cameraRequestId = 0L
 
     override fun onCreate() {
@@ -143,7 +156,9 @@ class BarcodeInputService : InputMethodService() {
         val preview = PreviewView(this).apply {
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            contentDescription = getString(R.string.camera_preview_description)
+            contentDescription = getString(R.string.camera_preview_tap_to_focus)
+            isFocusable = false
+            isFocusableInTouchMode = false
         }
         frame.addView(
             preview,
@@ -188,7 +203,84 @@ class BarcodeInputService : InputMethodService() {
             stateListAnimator = null
             setOnClickListener { openHelpPanel() }
         }
+        val modeButton = Button(this).apply {
+            minWidth = dp(96)
+            minHeight = dp(48)
+            setPadding(dp(8), 0, dp(8), 0)
+            isAllCaps = false
+            isFocusable = false
+            isFocusableInTouchMode = false
+            contentDescription = getString(scanModes.snapshot().mode.descriptionResId)
+            setOnClickListener { renderScanModeButton(this, scanModes.toggle()) }
+        }
+        statusRow.addView(modeButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(48)).apply {
+            setMargins(0, 0, dp(4), 0)
+        })
         statusRow.addView(aboutButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+
+        var pendingFocusPoint: Pair<Float, Float>? = null
+        var touchStartX = 0f
+        var touchStartY = 0f
+        var focusGestureMoved = false
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        preview.setOnClickListener {
+            val point = pendingFocusPoint ?: (preview.width / 2f to preview.height / 2f)
+            pendingFocusPoint = null
+            requestFocusAt(preview, point.first, point.second)
+        }
+        preview.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchStartX = event.x
+                    touchStartY = event.y
+                    focusGestureMoved = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (kotlin.math.abs(event.x - touchStartX) > touchSlop ||
+                        kotlin.math.abs(event.y - touchStartY) > touchSlop
+                    ) focusGestureMoved = true
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!focusGestureMoved) {
+                        pendingFocusPoint = event.x to event.y
+                        view.performClick()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    pendingFocusPoint = null
+                    true
+                }
+                else -> true
+            }
+        }
+
+        val torchControl = ImageButton(this).apply {
+            setImageResource(R.drawable.ic_torch)
+            contentDescription = getString(R.string.torch_turn_on)
+            minWidth = dp(48)
+            minHeight = dp(48)
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setBackgroundResource(R.drawable.torch_button_background)
+            backgroundTintList = null
+            imageTintList = ContextCompat.getColorStateList(this@BarcodeInputService, R.color.torch_icon_tint)
+            isFocusable = false
+            isFocusableInTouchMode = false
+            elevation = 0f
+            stateListAnimator = null
+            visibility = View.GONE
+            setOnClickListener { toggleTorch() }
+        }
+        frame.addView(
+            torchControl,
+            FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP or Gravity.START).apply {
+                setMargins(dp(8), dp(8), 0, 0)
+            },
+        )
+        renderScanModeButton(modeButton, scanModes.snapshot())
 
         fun toolbarButton(label: String, description: String, action: () -> Unit) = Button(this).apply {
             text = label
@@ -377,13 +469,16 @@ class BarcodeInputService : InputMethodService() {
         keyboardContainer = container
         aboutHelpPanel = helpPanel
         helpButton = aboutButton
+        scanModeButton = modeButton
         cameraFrame = frame
+        torchButton = torchControl
+        renderTorchButton()
         this.developerSignature = developerSignature
         permissionButton = enableCamera
         undoButton = undo
         keyboardScrollView = controlsScrollView
         toolbarButtons = editingButtons + spaceButton
-        themedButtons = toolbarButtons + listOf(switchButton, hideButton, enableCamera)
+        themedButtons = toolbarButtons + listOf(modeButton, switchButton, hideButton, enableCamera)
         applyKeyboardTheme()
         refreshUndoButton()
         return container
@@ -584,6 +679,12 @@ class BarcodeInputService : InputMethodService() {
             setBackgroundResource(R.drawable.keyboard_status_background)
         }
         themedButtons.forEach { styleKeyboardButton(it, if (it in toolbarButtons) 13f else 14f) }
+        scanModeButton?.let(::styleScanModeButton)
+        torchButton?.apply {
+            setBackgroundResource(R.drawable.torch_button_background)
+            backgroundTintList = null
+            imageTintList = ContextCompat.getColorStateList(this@BarcodeInputService, R.color.torch_icon_tint)
+        }
         developerSignature?.apply {
             setTextColor(ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_engraving_text))
             setShadowLayer(
@@ -603,6 +704,35 @@ class BarcodeInputService : InputMethodService() {
         button.textSize = textSizeSp
         button.elevation = 0f
         button.stateListAnimator = null
+    }
+
+    private fun styleScanModeButton(button: Button) {
+        button.setBackgroundResource(R.drawable.scan_mode_button_background)
+        button.backgroundTintList = null
+        button.setTextColor(ContextCompat.getColorStateList(this, R.color.keyboard_button_text))
+        button.textSize = 12.5f
+        button.setPadding(dp(8), 0, dp(8), 0)
+        button.elevation = 0f
+        button.stateListAnimator = null
+        renderScanModeButton(button, scanModes.snapshot())
+    }
+
+    private fun renderScanModeButton(button: Button, snapshot: ScanModeSnapshot) {
+        button.text = getString(snapshot.mode.labelResId)
+        button.contentDescription = getString(snapshot.mode.descriptionResId)
+        button.isActivated = snapshot.mode == ScanMode.ACCURATE
+        button.isSelected = button.isActivated
+    }
+
+    private fun renderTorchButton() {
+        torchButton?.apply {
+            isActivated = torchState.isEnabled
+            isSelected = torchState.isEnabled
+            isEnabled = !torchState.isPending
+            contentDescription = getString(
+                if (torchState.isEnabled) R.string.torch_turn_off else R.string.torch_turn_on,
+            )
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -668,6 +798,7 @@ class BarcodeInputService : InputMethodService() {
             setPermissionRequiredStatus()
             return
         }
+        if (activeCamera != null && analysisUseCase != null) return
 
         val preview = previewView ?: return
         setStatus(R.string.camera_starting)
@@ -702,7 +833,18 @@ class BarcodeInputService : InputMethodService() {
                         )
                         .setTargetRotation(rotation)
                         .build()
-                    imageAnalysis.setAnalyzer(analyzerExecutor, BarcodeFrameAnalyzer.create(sessionId, ::onDecoded))
+                    imageAnalysis.setAnalyzer(
+                        analyzerExecutor,
+                        BarcodeFrameAnalyzer(
+                            sessionId = sessionId,
+                            cameraGeneration = requestId,
+                            modes = scanModes,
+                            decoder = barcodeDecoder,
+                            timing = decodeTiming,
+                            onDecoded = ::onDecoded,
+                            onFailure = ::onDecoderFailure,
+                        ),
+                    )
 
                     val cameraPreview = Preview.Builder()
                         .setTargetRotation(rotation)
@@ -716,6 +858,10 @@ class BarcodeInputService : InputMethodService() {
                         cameraPreview,
                         imageAnalysis,
                     )
+                    activeCamera = camera
+                    torchState.reset()
+                    torchButton?.visibility = if (camera.cameraInfo.hasFlashUnit()) View.VISIBLE else View.GONE
+                    renderTorchButton()
                     previewUseCase = cameraPreview
                     analysisUseCase = imageAnalysis
                     val stateObserver = Observer<CameraState> { state ->
@@ -738,13 +884,7 @@ class BarcodeInputService : InputMethodService() {
                     permissionButton?.visibility = View.GONE
                     preview.post {
                         if (!sessionGate.isCurrent(sessionId) || cameraRequestId != requestId) return@post
-                        val point = preview.meteringPointFactory.createPoint(preview.width / 2f, preview.height / 2f)
-                        camera.cameraControl.startFocusAndMetering(
-                            FocusMeteringAction.Builder(
-                                point,
-                                FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE,
-                            ).setAutoCancelDuration(2, TimeUnit.SECONDS).build(),
-                        )
+                        requestFocusAt(preview, preview.width / 2f, preview.height / 2f)
                     }
                 } catch (error: SecurityException) {
                     Log.e(TAG, "Camera permission was revoked during startup", error)
@@ -769,6 +909,19 @@ class BarcodeInputService : InputMethodService() {
 
     private fun stopCamera() {
         cameraRequestId += 1
+        activeCamera?.let { camera ->
+            try {
+                if (camera.cameraInfo.hasFlashUnit()) camera.cameraControl.enableTorch(false)
+            } catch (_: Exception) {
+                // Unbinding the camera also releases the torch if the device is already closing.
+            } catch (_: LinkageError) {
+                // Keep camera implementation failures isolated from keyboard teardown.
+            }
+        }
+        activeCamera = null
+        torchState.reset()
+        torchButton?.visibility = View.GONE
+        renderTorchButton()
         cameraStateObserver?.let { observer -> observedCameraState?.removeObserver(observer) }
         cameraStateObserver = null
         observedCameraState = null
@@ -779,16 +932,90 @@ class BarcodeInputService : InputMethodService() {
         cameraLifecycle.pause()
     }
 
+    private fun toggleTorch() {
+        val camera = activeCamera ?: return
+        if (helpVisible || checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return
+        val hasFlashUnit = try {
+            camera.cameraInfo.hasFlashUnit()
+        } catch (_: Exception) {
+            return
+        } catch (_: LinkageError) {
+            return
+        }
+        val request = torchState.beginToggle(hasFlashUnit) ?: return
+        val cameraGeneration = cameraRequestId
+        renderTorchButton()
+        try {
+            val future = camera.cameraControl.enableTorch(request.enabled)
+            future.addListener({
+                val succeeded = try {
+                    future.get()
+                    true
+                } catch (_: Exception) {
+                    false
+                } catch (_: LinkageError) {
+                    false
+                }
+                if (cameraGeneration != cameraRequestId || activeCamera !== camera) return@addListener
+                if (torchState.complete(request, succeeded)) {
+                    renderTorchButton()
+                    if (!succeeded) setStatus(R.string.torch_activation_failed)
+                }
+            }, mainExecutor)
+        } catch (_: Exception) {
+            if (torchState.complete(request, succeeded = false)) {
+                renderTorchButton()
+                setStatus(R.string.torch_activation_failed)
+            }
+        } catch (_: LinkageError) {
+            if (torchState.complete(request, succeeded = false)) {
+                renderTorchButton()
+                setStatus(R.string.torch_activation_failed)
+            }
+        }
+    }
+
+    private fun requestFocusAt(preview: PreviewView, x: Float, y: Float) {
+        if (helpVisible || checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return
+        val camera = activeCamera ?: return
+        try {
+            val point = preview.meteringPointFactory.createPoint(x, y)
+            val action = FocusMeteringAction.Builder(
+                point,
+                FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE,
+            ).setAutoCancelDuration(2, TimeUnit.SECONDS).build()
+            if (!camera.cameraInfo.isFocusMeteringSupported(action)) return
+            val future = camera.cameraControl.startFocusAndMetering(action)
+            future.addListener({
+                try {
+                    future.get()
+                } catch (_: Exception) {
+                    // Unsupported metering or a camera closing during focus is harmless.
+                } catch (_: LinkageError) {
+                    // Keep focus failures isolated from the input method.
+                }
+            }, mainExecutor)
+        } catch (_: Exception) {
+            // Some cameras do not support the requested AF/AE combination.
+        } catch (_: LinkageError) {
+            // Keep camera implementation failures from disrupting keyboard input.
+        }
+    }
+
     private fun clearPendingResults() {
         mainHandler.removeCallbacksAndMessages(resultCallbackToken)
         resultCallbackToken = Any()
     }
 
-    private fun onDecoded(sessionId: Long, value: String) {
-        if (helpVisible || sessionId != currentSessionId) return
+    private fun onDecoded(sessionId: Long, cameraGeneration: Long, modeGeneration: Long, value: String) {
+        if (helpVisible || sessionId != currentSessionId || cameraGeneration != cameraRequestId ||
+            !scanModes.isCurrent(modeGeneration)
+        ) return
         val callbackToken = resultCallbackToken
         mainHandler.postAtTime(resultCallback@{
-            if (helpVisible || !sessionGate.isCurrent(sessionId) || !isInputViewShown) return@resultCallback
+            if (helpVisible || !sessionGate.isCurrent(sessionId) || !isInputViewShown ||
+                cameraGeneration != cameraRequestId || !scanModes.isCurrent(modeGeneration)
+            ) return@resultCallback
             val inputConnection: InputConnection = currentInputConnection ?: return@resultCallback
             if (!sessionGate.shouldAccept(sessionId, value, SystemClock.elapsedRealtime())) return@resultCallback
 
@@ -816,6 +1043,14 @@ class BarcodeInputService : InputMethodService() {
         }, callbackToken, SystemClock.uptimeMillis())
     }
 
+    private fun onDecoderFailure(sessionId: Long, cameraGeneration: Long, modeGeneration: Long) {
+        mainHandler.post {
+            if (!helpVisible && sessionGate.isCurrent(sessionId) && cameraGeneration == cameraRequestId &&
+                scanModes.isCurrent(modeGeneration)
+            ) setStatus(R.string.scanner_decoder_unavailable)
+        }
+    }
+
     private fun setStatus(messageId: Int) {
         statusView?.setText(messageId)
     }
@@ -832,6 +1067,7 @@ class BarcodeInputService : InputMethodService() {
             contentDescription = text
         }
         if (!granted) setPermissionRequiredStatus()
+        if (!granted && activeCamera != null) stopCamera()
     }
 
     private fun setPermissionRequiredStatus() {

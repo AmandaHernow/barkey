@@ -12,6 +12,9 @@ Third-party components used by the application:
 
 - ZXing Core, Copyright ZXing authors, Apache License 2.0.
   https://github.com/zxing/zxing
+- ZXing-C++ Android wrapper and core, Copyright 2016-2026 ZXing authors,
+  Nu-book Inc., Axel Waggershauser and contributors, Apache License 2.0.
+  https://github.com/zxing-cpp/zxing-cpp
 - AndroidX and CameraX, Apache License 2.0.
   https://github.com/androidx/androidx
 - Guava, Copyright Google LLC, Apache License 2.0.
