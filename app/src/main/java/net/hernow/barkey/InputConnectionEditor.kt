@@ -14,9 +14,19 @@ internal class InputConnectionEditor {
         value: String,
         recordUndo: Boolean,
     ): Boolean {
-        undoRecord = null
         val compositionFinished = connection.finishComposingText()
-        val before = if (recordUndo && compositionFinished && value.length <= MAX_UNDO_TEXT_LENGTH) {
+        return insertText(connection, sessionId, value, recordUndo && compositionFinished)
+    }
+
+    /** Inserts text from a BarKey control and records it only when bounded snapshots verify it. */
+    fun insertText(
+        connection: EditorConnection,
+        sessionId: Long,
+        value: String,
+        recordUndo: Boolean,
+    ): Boolean {
+        undoRecord = null
+        val before = if (recordUndo && value.isNotEmpty() && value.length <= MAX_UNDO_TEXT_LENGTH) {
             connection.cursorSnapshot(CONTEXT_CHARS, CONTEXT_CHARS)
                 ?.takeIf { it.selectionStart == it.selectionEnd && it.absoluteCursorPosition != null }
         } else {
@@ -55,6 +65,10 @@ internal class InputConnectionEditor {
         if (connection == null || connection.identity !== record.connectionIdentity ||
             sessionId != record.sessionId
         ) {
+            undoRecord = null
+            return false
+        }
+        if (!matches(record, connection, sessionId)) {
             undoRecord = null
             return false
         }
@@ -126,18 +140,29 @@ internal class InputConnectionEditor {
         return connection.deleteSurroundingText(utf16Length, 0)
     }
 
-    fun insertSpace(connection: EditorConnection): Boolean = connection.commitText(" ", 1)
+    fun insertSpace(connection: EditorConnection, sessionId: Long, recordUndo: Boolean): Boolean =
+        insertText(connection, sessionId, " ", recordUndo)
+
+    fun insertSpace(connection: EditorConnection): Boolean {
+        undoRecord = null
+        return connection.commitText(" ", 1)
+    }
 
     fun moveCursorLeft(connection: EditorConnection): Boolean = sendKey(connection, KeyEvent.KEYCODE_DPAD_LEFT)
 
     fun moveCursorRight(connection: EditorConnection): Boolean = sendKey(connection, KeyEvent.KEYCODE_DPAD_RIGHT)
 
-    fun enter(connection: EditorConnection, editorInfo: EditorInfo?): Boolean {
+    fun enter(
+        connection: EditorConnection,
+        editorInfo: EditorInfo?,
+        sessionId: Long = 0L,
+        recordUndo: Boolean = false,
+    ): Boolean {
         val imeOptions = editorInfo?.imeOptions ?: 0
         val inputType = editorInfo?.inputType ?: 0
         return when (val command = EditorCommandPolicy.enter(imeOptions, inputType)) {
             is EnterCommand.PerformEditorAction -> connection.performEditorAction(command.action)
-            EnterCommand.InsertNewline -> connection.commitText("\n", 1)
+            EnterCommand.InsertNewline -> insertText(connection, sessionId, "\n", recordUndo)
             EnterCommand.SendEnterKey -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
         }
     }

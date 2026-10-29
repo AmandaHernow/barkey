@@ -7,6 +7,7 @@
     <string name="suffix_enter">Enter</string>
     <string name="suffix_tab">Tab</string>
     <string name="scanner_keyboard_description">Barcode scanner keyboard</string>
+    <string name="keyboard_controls_description">Keyboard editing controls; scroll only when the display is too short to show them all</string>
     <string name="camera_preview_description">Rear camera preview for barcode scanning</string>
     <string name="scanner_status_description">Scanner status</string>
     <string name="camera_preview_tap_to_focus">Camera preview. Tap to focus at that location.</string>
@@ -36,7 +37,8 @@
     <string name="hide_keyboard_label">Hide Keyboard</string>
     <string name="hide_keyboard">Hide scanner keyboard</string>
     <string name="undo_short">Undo</string>
-    <string name="undo_scan">Undo most recent scanner insertion</string>
+    <string name="undo_scan">Undo latest safely verified BarKey text insertion</string>
+    <string name="resize_keyboard">Drag up or down to resize BarKey</string>
     <string name="left_arrow">←</string>
     <string name="right_arrow">→</string>
     <string name="move_cursor_left">Move cursor left</string>
@@ -50,8 +52,8 @@
     <string name="space_key">Space</string>
     <string name="insert_space">Insert a space</string>
     <string name="editing_unavailable">This field could not complete that editing action.</string>
-    <string name="scan_undo_complete">Last scan undone.</string>
-    <string name="scan_undo_unavailable">Undo is unavailable because the scan or cursor context changed.</string>
+    <string name="scan_undo_complete">Last BarKey insertion undone.</string>
+    <string name="scan_undo_unavailable">Undo is unavailable because the insertion or cursor context changed.</string>
     <string name="developer_signature">Barkey Developed by Amanda Hernow, 2026 version 1.0</string>
     <string name="help_icon_label">?</string>
     <string name="help_icon_description">About and Help</string>
@@ -72,7 +74,7 @@
     <string name="help_privacy_offline_body">Barcode recognition takes place entirely on this device.</string>
     <string name="help_privacy_data_title">No Data Collection</string>
     <string name="help_privacy_data_body">BarKey does not upload or persist scanned barcode contents.</string>
-    <string name="help_privacy_memory_note">Temporary decoded text is held in memory while it is processed. Duplicate suppression keeps the most recent value in the active input session and compares it during a one-second window. Safe Undo may temporarily retain the latest insertion and bounded nearby text; its context is cleared when the field or cursor context changes, an editing control is used, the keyboard is hidden or switched, or the input session ends. Scan contents are not written to logs or persistent storage.</string>
+    <string name="help_privacy_memory_note">Temporary decoded text is held in memory while it is processed. Duplicate suppression keeps the most recent value in the active input session and compares it during a one-second window. Safe Undo may temporarily retain the latest BarKey insertion and bounded nearby text; its context is cleared when the field or cursor context changes, a different editing action is used, the keyboard is hidden or switched, or the input session ends. Scan contents are not written to logs or persistent storage.</string>
     <string name="help_how_to_heading">How to Use BarKey</string>
     <string name="help_step_1">1. Enable BarKey in Android keyboard settings.</string>
     <string name="help_step_2">2. Select BarKey as the active keyboard.</string>
@@ -84,14 +86,15 @@
     <string name="help_scan_mode_accurate">Accurate — Uses additional processing for difficult, angled, damaged or inverted barcodes. It may be slower.</string>
     <string name="help_tap_to_focus">Tap to focus — Tap the camera preview to request focus at that location.</string>
     <string name="help_torch">Torch — On supported devices, tap the flashlight icon to illuminate the scanning area.</string>
-    <string name="help_control_undo">Undo — Safely undo the latest BarKey insertion when the field and cursor context are unchanged. Undo is unavailable when safety cannot be verified.</string>
+    <string name="help_control_undo">Undo — Safely undo the latest BarKey scan without a configured suffix, Space or explicitly inserted newline when bounded editor context still matches. It is disabled for password/private fields, editors without reliable snapshots, and after the cursor, selection, field or surrounding text changes.</string>
     <string name="help_control_cursor">Left / Right — Move the cursor within the current field.</string>
     <string name="help_control_backspace">Backspace — Delete the selection or the character before the cursor.</string>
     <string name="help_control_space">Space — Insert a space at the cursor.</string>
-    <string name="help_control_tab">Tab — Ask the receiving app to move to the next field.</string>
-    <string name="help_control_enter">Enter — Perform the field action, or insert a newline in a multiline field when appropriate.</string>
+    <string name="help_control_tab">Tab — Ask the receiving app to move to the next field. BarKey uses the advertised Next editor action or sends a Tab key event when appropriate. Chrome, WebView and other apps control focus traversal, so navigation may be unavailable in some forms.</string>
+    <string name="help_control_enter">Enter — Perform the field action, or insert a newline in a multiline field when appropriate. A safely verified newline can be undone.</string>
     <string name="help_control_switch">Switch Keyboard — Return to the previous keyboard when Android supports it, or open the system keyboard picker.</string>
-    <string name="help_navigation_note">Tab and Enter behaviour depends on the receiving application and the field. Some browser and WebView forms may not support every editor action.</string>
+    <string name="help_navigation_note">Tab and Enter behaviour depends on the receiving application and the field. BarKey cannot control arbitrary focus traversal inside another app. Some Chrome, browser and WebView forms may ignore Tab or interpret key events differently.</string>
+    <string name="help_resize_note">Resize BarKey by dragging the small handle above the camera preview. The keyboard stays docked; its preview grows or shrinks while editing controls keep their normal size.</string>
     <string name="help_permissions_heading">Permissions</string>
     <string name="help_permissions_body">BarKey requests Camera permission so it can scan barcodes and QR codes. Camera access is needed for scanning. You can deny permission or revoke it later in Android Settings; scanning will be unavailable until it is granted again.</string>
     <string name="help_keyboard_warning">Android may show its standard warning when you enable a third-party keyboard because an input method can receive text entered into fields. BarKey uses the active field to insert scans and performs editing actions when you request them.</string>

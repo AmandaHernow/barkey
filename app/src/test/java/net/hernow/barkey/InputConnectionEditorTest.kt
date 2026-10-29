@@ -22,6 +22,48 @@ class InputConnectionEditorTest {
         assertEquals("", connection.value())
     }
 
+    @Test fun spaceInsertionCanBeSafelyUndoneToPreviousCursor() {
+        val connection = FakeEditorConnection("left-right", cursor = 4)
+        assertTrue(editor.insertSpace(connection, 3L, recordUndo = true))
+        assertEquals("left -right", connection.value())
+        assertTrue(editor.canUndo(connection, 3L))
+        assertTrue(editor.undo(connection, 3L))
+        assertEquals("left-right", connection.value())
+        assertEquals(4, connection.cursor())
+        assertFalse(editor.canUndo(connection, 3L))
+    }
+
+    @Test fun explicitlyInsertedMultilineNewlineCanBeUndone() {
+        val connection = FakeEditorConnection("ab", cursor = 1)
+        val info = EditorInfo().apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            imeOptions = EditorInfo.IME_ACTION_UNSPECIFIED
+        }
+        assertTrue(editor.enter(connection, info, sessionId = 8L, recordUndo = true))
+        assertEquals("a\nb", connection.value())
+        assertTrue(editor.undo(connection, 8L))
+        assertEquals("ab", connection.value())
+        assertEquals(1, connection.cursor())
+    }
+
+    @Test fun undoEligibilityRechecksContextAndSelectionCallback() {
+        val unchanged = FakeEditorConnection()
+        assertTrue(editor.insertSpace(unchanged, 4L, recordUndo = true))
+        editor.onSelectionChanged(unchanged, 4L, 1, 1)
+        assertTrue(editor.canUndo(unchanged, 4L))
+
+        val edited = FakeEditorConnection()
+        assertTrue(editor.insertText(edited, 5L, " ", recordUndo = true))
+        edited.replaceAll("external")
+        assertFalse(editor.canUndo(edited, 5L))
+
+        val selected = FakeEditorConnection()
+        assertTrue(editor.insertText(selected, 5L, "X", recordUndo = true))
+        editor.onSelectionChanged(selected, 5L, 0, 0)
+        assertFalse(editor.canUndo(selected, 5L))
+        assertEquals("X", selected.value())
+    }
+
     @Test fun emptyFieldBackspaceDoesNotDelete() {
         val connection = FakeEditorConnection()
         assertTrue(editor.backspace(connection))
@@ -144,6 +186,12 @@ class InputConnectionEditorTest {
         assertEquals(NextFieldCommand.UNSUPPORTED, EditorCommandPolicy.nextField(0, multiline))
         assertEquals(NextFieldCommand.PERFORM_EDITOR_ACTION,
             EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_NEXT, multiline))
+        assertEquals(NextFieldCommand.SEND_TAB_KEY,
+            EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_DONE, InputType.TYPE_CLASS_TEXT))
+        assertEquals(NextFieldCommand.SEND_TAB_KEY,
+            EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_UNSPECIFIED, InputType.TYPE_CLASS_TEXT))
+        assertEquals(NextFieldCommand.UNSUPPORTED,
+            EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_DONE, multiline))
     }
 
     @Test fun enterAndTabFallbacksNeverCommitLiteralTab() {
@@ -163,6 +211,23 @@ class InputConnectionEditorTest {
         assertEquals(listOf("\n"), multiline.committedText)
         assertFalse(editor.nextField(multiline, multilineInfo))
         assertTrue(multiline.keyEvents.isEmpty())
+    }
+
+    @Test fun tabWithDoneOrUnspecifiedNeverPerformsSubmitOrEnterAction() {
+        listOf(EditorInfo.IME_ACTION_DONE, EditorInfo.IME_ACTION_UNSPECIFIED).forEach { action ->
+            val connection = FakeEditorConnection()
+            val info = EditorInfo().apply {
+                inputType = InputType.TYPE_CLASS_TEXT
+                imeOptions = action
+            }
+            assertTrue(editor.nextField(connection, info))
+            assertTrue(connection.actions.isEmpty())
+            assertEquals(listOf(
+                KeyEvent.KEYCODE_TAB to KeyEvent.ACTION_DOWN,
+                KeyEvent.KEYCODE_TAB to KeyEvent.ACTION_UP,
+            ), connection.keyEvents)
+            assertTrue(connection.committedText.isEmpty())
+        }
     }
 
     private fun nullReturningInputConnection(): InputConnection = Proxy.newProxyInstance(
@@ -266,5 +331,6 @@ class InputConnectionEditorTest {
         }
 
         fun value() = content.toString()
+        fun cursor() = end
     }
 }

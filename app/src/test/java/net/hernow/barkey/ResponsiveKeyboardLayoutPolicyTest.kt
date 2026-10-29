@@ -1,9 +1,59 @@
 package net.hernow.barkey
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ResponsiveKeyboardLayoutPolicyTest {
+    @Test fun keyboardMinimumComesFromMeasuredControlsAndPreview() {
+        val bounds = ResponsiveKeyboardLayoutPolicy.heightBounds(
+            usableDisplayHeightPx = 2_000,
+            measuredFixedContentHeightPx = 780,
+            minimumPreviewHeightPx = 240,
+            leaveApplicationVisiblePx = 360,
+        )
+        assertEquals(1_020, bounds.minimumPx)
+        assertEquals(1_500, bounds.maximumPx)
+        assertTrue(ResponsiveKeyboardLayoutPolicy.controlsFit(bounds.minimumPx, 780, 240))
+    }
+
+    @Test fun maximumHeightHonoursDisplayBoundsAndLeavesApplicationRoom() {
+        val bounds = ResponsiveKeyboardLayoutPolicy.heightBounds(usableDisplayHeightPx = 1_000,
+            measuredFixedContentHeightPx = 300, minimumPreviewHeightPx = 100,
+            leaveApplicationVisiblePx = 200)
+        assertEquals(400, bounds.minimumPx)
+        assertEquals(750, bounds.maximumPx)
+
+        val constrained = ResponsiveKeyboardLayoutPolicy.heightBounds(500, 420, 100, 150)
+        assertEquals(500, constrained.minimumPx)
+        assertEquals(500, constrained.maximumPx)
+    }
+
+    @Test fun dragDirectionDistanceAndBoundsAreAppliedToRealWindowHeight() {
+        val bounds = ResponsiveKeyboardLayoutPolicy.HeightBounds(400, 900)
+        assertEquals(550, ResponsiveKeyboardLayoutPolicy.resizedHeight(500, -50, bounds))
+        assertEquals(450, ResponsiveKeyboardLayoutPolicy.resizedHeight(500, 50, bounds))
+        assertEquals(900, ResponsiveKeyboardLayoutPolicy.resizedHeight(850, -100, bounds))
+        assertEquals(400, ResponsiveKeyboardLayoutPolicy.resizedHeight(450, 100, bounds))
+    }
+
+    @Test fun selectedHeightPersistsAcrossLifecycleAndClampsAfterOrientationChange() {
+        val state = KeyboardHeightState()
+        val portrait = ResponsiveKeyboardLayoutPolicy.HeightBounds(400, 1_200)
+        assertEquals(400, state.height(portrait))
+        assertEquals(700, state.resize(-300, portrait))
+
+        // Input/camera/help lifecycle changes do not own or reset service-lifetime height state.
+        assertEquals(700, state.height(portrait))
+        assertEquals(550, state.height(ResponsiveKeyboardLayoutPolicy.HeightBounds(350, 550)))
+        assertTrue(state.isManuallyResized())
+    }
+
+    @Test fun tinyLandscapeConstrainedPreviewNeverClaimsTheControlsFit() {
+        assertEquals(0, ResponsiveKeyboardLayoutPolicy.constrainedPreviewHeight(280, 300, 80))
+        assertEquals(false, ResponsiveKeyboardLayoutPolicy.controlsFit(280, 300, 0))
+    }
+
     @Test fun toolbarRowsNeverAssumeTabletWidth() {
         assertEquals(2, ResponsiveKeyboardLayoutPolicy.toolbarColumns(390, 3f))
         assertEquals(3, ResponsiveKeyboardLayoutPolicy.toolbarColumns(500, 2.5f))

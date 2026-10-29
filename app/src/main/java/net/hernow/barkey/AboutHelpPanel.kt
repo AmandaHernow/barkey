@@ -94,6 +94,7 @@ internal class AboutHelpPanel(
                 R.string.help_step_5,
                 R.string.help_step_6,
             ).forEach { addBody(context, section, it) }
+            addBody(context, section, R.string.help_resize_note)
             listOf(
                 R.string.help_control_undo,
                 R.string.help_control_cursor,
