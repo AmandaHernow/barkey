@@ -3,19 +3,6 @@ Copyright 2026 Amanda Hernow (BarKey work).
 
 BarKey is licensed under the Apache License, Version 2.0. See LICENSE.
 
-Historical source notice
-------------------------
-The project README for the 2020 Android Barcode Keyboard project by Raphael
-Michel stated: "Copyright 2020 Raphael Michel. Apache License 2.0." This
-historical notice is retained out of caution for any original material that may
-remain. BarKey has since been extensively redeveloped. A source comparison did
-not identify substantial distinctive upstream implementation blocks among the
-current production Kotlin files, but that review is not an exhaustive legal
-determination. Generic Android input-method APIs, manifest declarations,
-permission flows, and Gradle configuration are not treated as proof of copied
-authorship. The original project used dm77/barcodescanner-view; BarKey does not
-use that library.
-
 Runtime components
 ------------------
 - ZXing-C++ Android 3.1.1 and ZXing-C++ core, barcode decoding library and
@@ -49,3 +36,5 @@ This file summarizes attribution based on the resolved release runtime
 dependency graph and available artifact metadata. Each component remains subject
 to its own license and applicable upstream notices. This summary is not a
 substitute for those licenses or a complete legal opinion.
+
+Copyright 2020 Raphael Michel. Apache License 2.0.

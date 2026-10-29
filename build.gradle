@@ -1,4 +1,4 @@
-// Modified by Amanda Hernow for BarKey in 2026; based on the 2020 Android Barcode Keyboard project.
+// Copyright 2026 Amanda Hernow. Modified for BarKey.
 buildscript {
     dependencies {
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21'

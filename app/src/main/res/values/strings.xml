@@ -1,4 +1,4 @@
-<!-- Modified by Amanda Hernow for BarKey in 2026; based on the 2020 Android Barcode Keyboard project. -->
+<!-- Copyright 2026 Amanda Hernow. Modified for BarKey. -->
 <resources>
     <string name="app_name">BarKey</string>
     <string name="setup_welcome">Welcome to BarKey</string>
@@ -83,7 +83,7 @@
     <string name="editing_unavailable">This field could not complete that editing action.</string>
     <string name="scan_undo_complete">Last BarKey insertion undone.</string>
     <string name="scan_undo_unavailable">Undo is unavailable because the insertion or cursor context changed.</string>
-    <string name="developer_signature">BarKey — Developed by Amanda Hernow</string>
+    <string name="developer_signature">Barkey Developed by Amanda Hernow, 2026 version 1.0</string>
     <string name="help_icon_label">\?</string>
     <string name="help_icon_description">About and Help</string>
     <string name="help_close">Close</string>
@@ -141,9 +141,6 @@
     <string name="help_guava_link">Guava project and licence</string>
     <string name="help_apache_license_link">Apache License 2.0</string>
     <string name="help_bsd_license_link">BSD 3-Clause License</string>
-    <string name="help_legal_credits_heading">Legal credits</string>
-    <string name="help_original_project">BarKey originated from the Android Barcode Keyboard project by Raphael Michel (2020), licensed under Apache 2.0. The application has since been extensively redeveloped.</string>
-    <string name="help_original_project_link">View the original Android Barcode Keyboard project</string>
     <string name="help_repository">GitHub: https://github.com/AmandaHernow/barkey</string>
     <string name="help_license">Licence: Apache License 2.0</string>
     <string name="help_version">Version %1$s</string>

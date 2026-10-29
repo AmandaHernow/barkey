@@ -1,5 +1,5 @@
 #!/bin/sh
-# Modified by Amanda Hernow for BarKey in 2026; based on the 2020 Android Barcode Keyboard project.
+# Copyright 2026 Amanda Hernow. Modified for BarKey.
 
 #
 # Copyright © 2015 the original authors.

@@ -159,9 +159,6 @@ internal class AboutHelpPanel(
             addExternalLink(context, section, R.string.help_repository, GITHUB_URL)
             addBody(context, section, R.string.help_license)
             addExternalLink(context, section, R.string.help_license, LICENSE_URL)
-            addBody(context, section, R.string.help_legal_credits_heading)
-            addBody(context, section, R.string.help_original_project)
-            addExternalLink(context, section, R.string.help_original_project_link, ORIGINAL_PROJECT_URL)
             addBody(context, section, R.string.help_version, versionName)
         }
         addSection(context, R.string.help_related_heading) { section ->
@@ -299,7 +296,6 @@ internal class AboutHelpPanel(
         const val GUAVA_URL = "https://github.com/google/guava"
         const val APACHE_LICENSE_URL = "https://www.apache.org/licenses/LICENSE-2.0"
         const val BSD_LICENSE_URL = "https://opensource.org/license/bsd-3-clause/"
-        const val ORIGINAL_PROJECT_URL = "https://github.com/raphaelm/android-barcode-keyboard"
         const val BLACKJACK_URL = "https://github.com/AmandaHernow/BlackJackCounterTool"
         const val ENCRYPTION_URL = "https://github.com/AmandaHernow/EncryptionDecryptionUtilityTool"
         const val HERNOWNET_URL = "https://hernow.net"

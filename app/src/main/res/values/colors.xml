@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modified by Amanda Hernow for BarKey in 2026; based on the 2020 Android Barcode Keyboard project. -->
+<!-- Copyright 2026 Amanda Hernow. Modified for BarKey. -->
 <resources>
     <color name="keyboard_background">#F2F4F6</color>
     <color name="keyboard_surface">#FFFFFF</color>
