@@ -5,16 +5,20 @@ import kotlin.math.floor
 /** Pure sizing decisions for the docked keyboard's measured window content. */
 internal object ResponsiveKeyboardLayoutPolicy {
     data class HeightBounds(val minimumPx: Int, val maximumPx: Int)
-    data class VerticalBounds(val topPx: Int, val bottomPx: Int)
+    data class InputViewContentHeights(
+        val permanentContentHeightPx: Int,
+        val scrollableControlsHeightPx: Int,
+    ) {
+        val fixedContentHeightPx: Int
+            get() = permanentContentHeightPx.coerceAtLeast(0) + scrollableControlsHeightPx.coerceAtLeast(0)
+    }
+    data class InputViewLayoutPlan(val inputViewHeightPx: Int, val previewHeightPx: Int)
 
     fun imeAvailableHeight(displayHeightPx: Int, topInsetPx: Int): Int =
         (displayHeightPx - topInsetPx).coerceAtLeast(1)
 
-    fun minimumKeyboardHeight(fixedContentHeightPx: Int, minimumPreviewHeightPx: Int): Int =
-        (fixedContentHeightPx + minimumPreviewHeightPx).coerceAtLeast(1)
-
-    fun keyboardVerticalBounds(displayBottomPx: Int, keyboardHeightPx: Int): VerticalBounds =
-        VerticalBounds(displayBottomPx - keyboardHeightPx, displayBottomPx)
+    fun minimumInputViewHeight(content: InputViewContentHeights, minimumPreviewHeightPx: Int): Int =
+        (content.fixedContentHeightPx + minimumPreviewHeightPx.coerceAtLeast(0)).coerceAtLeast(1)
 
     fun heightBounds(
         usableDisplayHeightPx: Int,
@@ -24,15 +28,16 @@ internal object ResponsiveKeyboardLayoutPolicy {
         maximumFraction: Float = 0.75f,
     ): HeightBounds {
         val usable = usableDisplayHeightPx.coerceAtLeast(1)
-        val minContent = minimumKeyboardHeight(measuredFixedContentHeightPx, minimumPreviewHeightPx)
+        val minContent = (measuredFixedContentHeightPx + minimumPreviewHeightPx).coerceAtLeast(1)
         val maximum = minOf(
             (usable * maximumFraction.coerceIn(0f, 1f)).toInt().coerceAtLeast(1),
             (usable - leaveApplicationVisiblePx).coerceAtLeast(1),
         )
-        // On very short displays, use the full safe display height and let preview reach its
-        // constrained fallback rather than clipping the editing controls below the IME window.
-        val minimum = minOf(minContent, usable)
-        return HeightBounds(minimum, maxOf(maximum, minimum).coerceAtMost(usable))
+        // If all controls plus a preview cannot fit while leaving application space, clamp to the
+        // real maximum and let the controls ScrollView provide access to overflow content.
+        val boundedMaximum = maximum.coerceAtMost(usable)
+        val minimum = minOf(minContent, boundedMaximum)
+        return HeightBounds(minimum, boundedMaximum)
     }
 
     fun resizedHeight(currentHeightPx: Int, dragDistanceYpx: Int, bounds: HeightBounds): Int =
@@ -54,25 +59,26 @@ internal object ResponsiveKeyboardLayoutPolicy {
             .coerceIn(1, maxColumns.coerceAtLeast(1))
     }
 
-    fun previewHeight(
-        viewportHeightPx: Int,
-        fixedContentHeightPx: Int,
-        minPreviewHeightPx: Int,
-        maxPreviewHeightPx: Int,
-    ): Int {
-        if (minPreviewHeightPx <= 0 || maxPreviewHeightPx < minPreviewHeightPx) {
-            return 1
+    fun inputViewLayoutPlan(
+        requestedInputViewHeightPx: Int,
+        bounds: HeightBounds,
+        content: InputViewContentHeights,
+        minimumPreviewHeightPx: Int,
+        automaticPreviewMaximumPx: Int,
+        manuallyResized: Boolean,
+    ): InputViewLayoutPlan {
+        val inputHeight = requestedInputViewHeightPx.coerceIn(bounds.minimumPx, bounds.maximumPx)
+        val remainingAfterPermanentContent = inputHeight - content.permanentContentHeightPx.coerceAtLeast(0)
+        val spaceAfterControls = remainingAfterPermanentContent - content.scrollableControlsHeightPx.coerceAtLeast(0)
+        val previewHeight = when {
+            remainingAfterPermanentContent <= 0 -> 0
+            spaceAfterControls < minimumPreviewHeightPx ->
+                minOf(minimumPreviewHeightPx, remainingAfterPermanentContent)
+            manuallyResized -> spaceAfterControls
+            else -> spaceAfterControls.coerceAtMost(automaticPreviewMaximumPx.coerceAtLeast(minimumPreviewHeightPx))
         }
-        if (viewportHeightPx <= 0) return minPreviewHeightPx
-        val availableHeight = viewportHeightPx - fixedContentHeightPx
-        return availableHeight.coerceIn(minPreviewHeightPx, maxPreviewHeightPx)
+        return InputViewLayoutPlan(inputHeight, previewHeight.coerceAtLeast(0))
     }
-
-    fun constrainedPreviewHeight(viewportHeightPx: Int, fixedContentHeightPx: Int, preferredMinPx: Int): Int =
-        (viewportHeightPx - fixedContentHeightPx).coerceAtLeast(0).coerceAtMost(preferredMinPx)
-
-    fun manuallyResizedPreviewHeight(viewportHeightPx: Int, fixedContentHeightPx: Int): Int =
-        (viewportHeightPx - fixedContentHeightPx).coerceAtLeast(0)
 
     private const val BUTTON_HORIZONTAL_MARGINS_DP = 4
 }

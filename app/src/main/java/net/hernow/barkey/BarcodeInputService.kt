@@ -28,7 +28,6 @@ import android.view.ViewTreeObserver
 import android.view.ViewConfiguration
 import android.view.Window
 import android.view.WindowInsets
-import android.view.WindowManager
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -96,6 +95,7 @@ class BarcodeInputService : InputMethodService() {
     private var toolbarButtons: List<Button> = emptyList()
     private var resizeHandleView: View? = null
     private var measuredMinimumImeHeightPx: Int? = null
+    private var measuredInputViewContentHeights: ResponsiveKeyboardLayoutPolicy.InputViewContentHeights? = null
     private var layoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
     private var permissionButton: Button? = null
     private var undoButton: Button? = null
@@ -169,7 +169,7 @@ class BarcodeInputService : InputMethodService() {
                     activeDragPointerId = event.getPointerId(0)
                     dragStartRawY = pointerRawY(handle, event, 0)
                     dragStartHeightPx = keyboardHeight.height(
-                        currentHeightBounds(measuredMinimumImeHeightPx ?: estimatedMinimumImeHeightPx()),
+                        currentHeightBounds(currentMinimumInputHeightPx()),
                     )
                     true
                 }
@@ -193,7 +193,7 @@ class BarcodeInputService : InputMethodService() {
                             activeDragPointerId = event.getPointerId(replacementIndex)
                             dragStartRawY = pointerRawY(handle, event, replacementIndex)
                             dragStartHeightPx = keyboardHeight.height(
-                                currentHeightBounds(measuredMinimumImeHeightPx ?: estimatedMinimumImeHeightPx()),
+                                currentHeightBounds(currentMinimumInputHeightPx()),
                             )
                         }
                     }
@@ -461,15 +461,20 @@ class BarcodeInputService : InputMethodService() {
         val baseRight = dp(8)
         val baseBottom = dp(4)
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, windowInsets ->
-            val safeInsets = windowInsets.getInsets(
-                WindowInsetsCompat.Type.navigationBars() or WindowInsetsCompat.Type.displayCutout(),
-            )
-            view.setPadding(
-                baseLeft + safeInsets.left,
-                baseTop + safeInsets.top,
-                baseRight + safeInsets.right,
-                baseBottom + safeInsets.bottom,
-            )
+            // InputMethodService configures its system-owned window to fit top/side system
+            // insets while excluding the bottom side. Only reserve the bottom safe inset here;
+            // applying top/side values again would double-count the framework fitting.
+            val navBottom = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            val cutoutBottom = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout()).bottom
+            val left = baseLeft
+            val top = baseTop
+            val right = baseRight
+            val bottom = baseBottom + maxOf(navBottom, cutoutBottom)
+            if (view.paddingLeft != left || view.paddingTop != top ||
+                view.paddingRight != right || view.paddingBottom != bottom
+            ) {
+                view.setPadding(left, top, right, bottom)
+            }
             windowInsets
         }
 
@@ -484,60 +489,41 @@ class BarcodeInputService : InputMethodService() {
         helpPanel.view.visibility = if (helpVisible) View.VISIBLE else View.GONE
         root.visibility = if (helpVisible) View.GONE else View.VISIBLE
 
-        rebuildToolbarRows(
-            toolbar,
-            editingButtons,
-            spaceButton,
-            (root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels) - root.paddingLeft - root.paddingRight,
-            density,
-            toolbarButtonMinWidthDp(),
+        val initialContentWidth = (
+            root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        ) - root.paddingLeft - root.paddingRight
+        val initialAvailableWidth = initialContentWidth.coerceAtLeast(1)
+        rebuildToolbarRows(toolbar, editingButtons, spaceButton, initialAvailableWidth, density, toolbarButtonMinWidthDp())
+        val initialContentHeights = measureInputViewContentHeights(
+            root, resizeHandle, statusRow, enableCamera, toolbar, actions, developerSignature,
+            initialAvailableWidth,
         )
+        measuredInputViewContentHeights = initialContentHeights
+        val minimumPreview = resources.getDimensionPixelSize(R.dimen.scanner_preview_min_height)
+        val initialMinimumHeight = ResponsiveKeyboardLayoutPolicy.minimumInputViewHeight(
+            initialContentHeights,
+            minimumPreview,
+        )
+        measuredMinimumImeHeightPx = initialMinimumHeight
+        val initialBounds = currentHeightBounds(initialMinimumHeight)
+        val initialInputHeight = if (keyboardHeight.isManuallyResized()) {
+            keyboardHeight.height(initialBounds)
+        } else {
+            keyboardHeight.useMeasuredDefault(initialBounds.minimumPx, initialBounds)
+        }
+        // setInputView() replaces the returned view's LayoutParams with WRAP_CONTENT. Keep the
+        // first intrinsic measurement tall enough until the attached input view gets explicit LP.
+        container.minimumHeight = initialInputHeight
+
         val listener = ViewTreeObserver.OnGlobalLayoutListener {
             val measuredWidth = (
                 root.width - root.paddingLeft - root.paddingRight
             ).coerceAtLeast(1)
             rebuildToolbarRows(toolbar, editingButtons, spaceButton, measuredWidth, density, toolbarButtonMinWidthDp())
-
-            val viewportHeight = root.height
-            // Measure the footer and fixed controls first; manual expansion belongs to the preview.
-            val minPreview = resources.getDimensionPixelSize(R.dimen.scanner_preview_min_height)
-            val signatureHeight = developerSignature.height.coerceAtLeast(dp(24))
-            val fixedContentHeight = root.paddingTop + root.paddingBottom + resizeHandle.height +
-                statusRow.height + enableCamera.height + toolbar.height + actions.height + signatureHeight
-            val maxPreview = resources.getDimensionPixelSize(R.dimen.scanner_preview_max_height)
-            if (viewportHeight > 0 && fixedContentHeight > 0) {
-                val targetHeight = if (keyboardHeight.isManuallyResized()) {
-                    ResponsiveKeyboardLayoutPolicy.manuallyResizedPreviewHeight(
-                        viewportHeight,
-                        fixedContentHeight,
-                    )
-                } else if (viewportHeight >= fixedContentHeight + minPreview) {
-                    ResponsiveKeyboardLayoutPolicy.previewHeight(
-                        viewportHeightPx = viewportHeight,
-                        fixedContentHeightPx = fixedContentHeight,
-                        minPreviewHeightPx = minPreview,
-                        maxPreviewHeightPx = maxPreview,
-                    )
-                } else {
-                    ResponsiveKeyboardLayoutPolicy.constrainedPreviewHeight(viewportHeight, fixedContentHeight, minPreview)
-                }
-                if (frame.layoutParams.height != targetHeight) {
-                    frame.layoutParams = frame.layoutParams.apply { height = targetHeight }
-                }
-            }
-            val minimumWindow = ResponsiveKeyboardLayoutPolicy.minimumKeyboardHeight(fixedContentHeight, minPreview)
-            measuredMinimumImeHeightPx = minimumWindow
-            if (getWindow()?.window?.let(::usableDisplayHeightPx) != null) {
-                val bounds = currentHeightBounds(minimumWindow)
-                val requested = if (keyboardHeight.isManuallyResized()) {
-                    keyboardHeight.height(bounds)
-                } else {
-                    keyboardHeight.useMeasuredDefault(bounds.minimumPx, bounds)
-                }
-                if (requested != currentWindowHeightPx()) {
-                    getWindow()?.window?.let(::applyDockedWindowLayout)
-                }
-            }
+            measuredInputViewContentHeights = measureInputViewContentHeights(
+                root, resizeHandle, statusRow, enableCamera, toolbar, actions, developerSignature, measuredWidth,
+            )
+            updateInputViewSizing()
         }
         root.viewTreeObserver.addOnGlobalLayoutListener(listener)
         layoutListener = listener
@@ -561,6 +547,17 @@ class BarcodeInputService : InputMethodService() {
         themedButtons = toolbarButtons + listOf(modeButton, switchButton, hideButton, enableCamera)
         applyKeyboardTheme()
         refreshUndoButton()
+        container.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) {
+                // InputMethodService has attached this view with its own WRAP_CONTENT LP by now.
+                // Replace that height before the first window measurement so the IME wraps the
+                // same explicit height as BarKey's opaque input view.
+                updateInputViewSizing()
+            }
+
+            override fun onViewDetachedFromWindow(view: View) = Unit
+        })
+        container.post { updateInputViewSizing() }
         return container
     }
 
@@ -571,35 +568,86 @@ class BarcodeInputService : InputMethodService() {
     }
 
     override fun onConfigureWindow(window: Window, isFullscreen: Boolean, isCandidatesOnly: Boolean) {
-        // The base implementation resets a non-fullscreen IME to WRAP_CONTENT on reconfiguration.
-        // Reapply our measured height and bottom anchoring to that same system-owned IME window.
+        // AOSP owns the IME window and configures it MATCH_PARENT x WRAP_CONTENT at Gravity.BOTTOM.
+        // The returned input view owns the selected height; its explicit child LP makes the
+        // framework's WRAP_CONTENT inputArea and window wrap the same visible content height.
         super.onConfigureWindow(window, false, isCandidatesOnly)
-        applyDockedWindowLayout(window)
+        keyboardContainer?.post { updateInputViewSizing() }
     }
 
-    private fun applyDockedWindowLayout(window: Window) {
-        val bounds = currentHeightBounds(measuredMinimumImeHeightPx ?: estimatedMinimumImeHeightPx())
-        val requested = keyboardHeight.height(bounds)
-        val attributes = window.attributes
-        attributes.gravity = Gravity.BOTTOM
-        attributes.x = 0
-        attributes.y = 0
-        window.attributes = attributes
-        window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, requested)
+    private fun measureInputViewContentHeights(
+        root: LinearLayout,
+        resizeHandle: View,
+        statusRow: View,
+        permissionButton: View,
+        toolbar: View,
+        actions: View,
+        signature: View,
+        contentWidthPx: Int,
+    ): ResponsiveKeyboardLayoutPolicy.InputViewContentHeights {
+        fun measuredHeight(view: View): Int {
+            if (view.visibility != View.VISIBLE) return 0
+            view.measure(
+                View.MeasureSpec.makeMeasureSpec(contentWidthPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            val margins = (view.layoutParams as? ViewGroup.MarginLayoutParams)
+                ?.let { it.topMargin + it.bottomMargin } ?: 0
+            return view.measuredHeight + margins
+        }
+
+        val permanent = root.paddingTop + root.paddingBottom + measuredHeight(resizeHandle) + measuredHeight(signature)
+        val controls = measuredHeight(statusRow) + measuredHeight(permissionButton) +
+            measuredHeight(toolbar) + measuredHeight(actions)
+        return ResponsiveKeyboardLayoutPolicy.InputViewContentHeights(permanent, controls)
     }
 
-    private fun estimatedMinimumImeHeightPx(): Int {
-        val width = (resources.displayMetrics.widthPixels - dp(16)).coerceAtLeast(1)
-        val columns = ResponsiveKeyboardLayoutPolicy.toolbarColumns(width, resources.displayMetrics.density)
-        val rows = (6 + columns - 1) / columns
-        val preview = resources.getDimensionPixelSize(R.dimen.scanner_preview_min_height)
-        return dp(48 + 52 + 52 + rows * 52 + 52 + 56 + 24 + 8) + preview
+    private fun updateInputViewSizing() {
+        val content = measuredInputViewContentHeights ?: return
+        val minimumPreview = resources.getDimensionPixelSize(R.dimen.scanner_preview_min_height)
+        val minimumHeight = ResponsiveKeyboardLayoutPolicy.minimumInputViewHeight(content, minimumPreview)
+        measuredMinimumImeHeightPx = minimumHeight
+        val bounds = currentHeightBounds(minimumHeight)
+        val requestedHeight = if (keyboardHeight.isManuallyResized()) {
+            keyboardHeight.height(bounds)
+        } else {
+            keyboardHeight.useMeasuredDefault(bounds.minimumPx, bounds)
+        }
+        val plan = ResponsiveKeyboardLayoutPolicy.inputViewLayoutPlan(
+            requestedInputViewHeightPx = requestedHeight,
+            bounds = bounds,
+            content = content,
+            minimumPreviewHeightPx = minimumPreview,
+            automaticPreviewMaximumPx = resources.getDimensionPixelSize(R.dimen.scanner_preview_max_height),
+            manuallyResized = keyboardHeight.isManuallyResized(),
+        )
+        keyboardContainer?.let { applyInputViewHeight(it, plan.inputViewHeightPx) }
+        cameraFrame?.let { frame ->
+            val params = frame.layoutParams
+            if (params != null && params.height != plan.previewHeightPx) {
+                params.height = plan.previewHeightPx
+                frame.layoutParams = params
+            }
+        }
+    }
+
+    private fun applyInputViewHeight(container: FrameLayout, heightPx: Int) {
+        // setInputView() has now attached the view and replaced its original LP with WRAP_CONTENT.
+        // Drop the temporary intrinsic floor, then set the real height on the attached input view.
+        if (container.parent == null) return
+        if (container.minimumHeight != 0) container.minimumHeight = 0
+        val params = container.layoutParams ?: return
+        if (params.height != heightPx) {
+            params.height = heightPx
+            container.layoutParams = params
+        }
     }
 
     private fun currentHeightBounds(minimumHeightPx: Int): ResponsiveKeyboardLayoutPolicy.HeightBounds {
         val window = getWindow()?.window
-        // This height includes the bottom nav area; content padding is measured separately in the
-        // fixed-content minimum, so the navigation inset is reserved once rather than subtracted twice.
+        // AOSP fits the top and side IME insets but leaves the bottom edge at the navigation area.
+        // The root applies the delivered bottom inset once as content padding; do not subtract it
+        // again from the docked window's available height.
         val usable = if (window != null) usableDisplayHeightPx(window) else resources.displayMetrics.heightPixels
         return ResponsiveKeyboardLayoutPolicy.heightBounds(
             usableDisplayHeightPx = usable,
@@ -609,14 +657,21 @@ class BarcodeInputService : InputMethodService() {
         )
     }
 
-    private fun currentWindowHeightPx(): Int = getWindow()?.window?.attributes?.height ?: 0
+    private fun currentMinimumInputHeightPx(): Int = measuredMinimumImeHeightPx
+        ?: measuredInputViewContentHeights?.let {
+            ResponsiveKeyboardLayoutPolicy.minimumInputViewHeight(
+                it,
+                resources.getDimensionPixelSize(R.dimen.scanner_preview_min_height),
+            )
+        }
+        ?: resources.getDimensionPixelSize(R.dimen.scanner_preview_min_height)
 
     private fun resizeKeyboardByDrag(dragStartHeightPx: Int, totalDragDistanceYpx: Int) {
-        val bounds = currentHeightBounds(measuredMinimumImeHeightPx ?: estimatedMinimumImeHeightPx())
-        val oldHeight = currentWindowHeightPx()
+        val bounds = currentHeightBounds(currentMinimumInputHeightPx())
+        val oldHeight = keyboardContainer?.layoutParams?.height?.takeIf { it > 0 } ?: keyboardHeight.height(bounds)
         val resized = keyboardHeight.resizeFromDrag(dragStartHeightPx, totalDragDistanceYpx, bounds)
         if (resized == oldHeight) return
-        getWindow()?.window?.let(::applyDockedWindowLayout)
+        updateInputViewSizing()
     }
 
     private fun pointerRawY(view: View, event: MotionEvent, pointerIndex: Int): Float {
@@ -636,6 +691,7 @@ class BarcodeInputService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        keyboardContainer?.post { updateInputViewSizing() }
         refreshPermissionUi()
         refreshUndoButton()
         if (!helpVisible) startCamera(currentSessionId)
@@ -682,6 +738,7 @@ class BarcodeInputService : InputMethodService() {
     override fun onWindowShown() {
         super.onWindowShown()
         if (!isInputViewShown) return
+        keyboardContainer?.post { updateInputViewSizing() }
         refreshPermissionUi()
         if (!helpVisible && checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera(currentSessionId)
@@ -717,8 +774,8 @@ class BarcodeInputService : InputMethodService() {
         super.onConfigurationChanged(newConfig)
         applyKeyboardTheme()
         updateFullscreenMode()
-        measuredMinimumImeHeightPx = null
-        getWindow()?.window?.let(::applyDockedWindowLayout)
+        keyboardRoot?.requestLayout()
+        keyboardContainer?.post { updateInputViewSizing() }
         val rotation = previewView?.display?.rotation
         if (rotation == null) {
             keyboardRoot?.requestLayout()
@@ -780,6 +837,8 @@ class BarcodeInputService : InputMethodService() {
             keyboardRoot?.viewTreeObserver?.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(listener)
         }
         layoutListener = null
+        measuredMinimumImeHeightPx = null
+        measuredInputViewContentHeights = null
         resizeHandleView = null
         keyboardRoot = null
         keyboardContainer = null

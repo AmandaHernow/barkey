@@ -55,7 +55,7 @@
     <string name="scan_undo_complete">Last BarKey insertion undone.</string>
     <string name="scan_undo_unavailable">Undo is unavailable because the insertion or cursor context changed.</string>
     <string name="developer_signature">Barkey Developed by Amanda Hernow, 2026 version 1.0</string>
-    <string name="help_icon_label">?</string>
+    <string name="help_icon_label">\?</string>
     <string name="help_icon_description">About and Help</string>
     <string name="help_close">Close</string>
     <string name="help_close_description">Close About and Help and return to scanning</string>
@@ -90,7 +90,7 @@
     <string name="help_control_cursor">Left / Right — Move the cursor within the current field.</string>
     <string name="help_control_backspace">Backspace — Delete the selection or the character before the cursor.</string>
     <string name="help_control_space">Space — Insert a space at the cursor.</string>
-    <string name="help_control_tab">Tab — Requests the editor's Next action only when it explicitly advertises forward navigation. Otherwise BarKey does nothing: it does not inject a Tab key, submit the form or hide the keyboard. Chrome, WebView and other apps control focus traversal.</string>
+    <string name="help_control_tab">Tab — Requests the Next action only when the editor explicitly advertises forward navigation. Otherwise BarKey does nothing: it does not inject a Tab key, submit the form or hide the keyboard. Chrome, WebView and other apps control focus traversal.</string>
     <string name="help_control_enter">Enter — Perform the field action, or insert a newline in a multiline field when appropriate. A safely verified newline can be undone.</string>
     <string name="help_control_switch">Switch Keyboard — Return to the previous keyboard when Android supports it, or open the system keyboard picker.</string>
     <string name="help_navigation_note">Tab and Enter behaviour depends on the receiving application and the field. BarKey cannot control arbitrary focus traversal inside another app. Tab is intentionally a no-op unless the field advertises NEXT navigation; an app may still handle an advertised action in its own way.</string>
