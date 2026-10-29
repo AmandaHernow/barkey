@@ -8,6 +8,8 @@
 
 **Repository:** [github.com/AmandaHernow/barkey](https://github.com/AmandaHernow/barkey)
 
+**Website:** [Home](https://amandahernow.github.io/barkey/) · [About BarKey](https://amandahernow.github.io/barkey/about.html) · [Privacy Policy](https://amandahernow.github.io/barkey/privacy-policy.html)
+
 **BarKey — Developed by Amanda Hernow** is a free, open-source Android barcode and QR scanner keyboard designed to work offline, without advertisements or tracking.
 
 This repository prepares the personal, public Google Play version of BarKey. The application ID remains `net.hernow.barkey`.
@@ -36,7 +38,7 @@ Version 1.0 is the first BarKey-branded development version. Project-owner testi
 
 The core scanner and keyboard workflow has been verified on a physical Android tablet. Camera behaviour, field navigation, accessibility, compatibility across other devices and enterprise policy interactions still need broader validation.
 
-The GitHub Pages content is prepared in [`docs/`](docs/). The planned public pages are [About](docs/about.html) and [Privacy Policy](docs/privacy-policy.html). Their intended URLs are `https://amandahernow.github.io/barkey/about.html` and `https://amandahernow.github.io/barkey/privacy-policy.html`; GitHub Pages publication has not yet been confirmed, so these URLs are not claimed to be live.
+The GitHub Pages website source is in [`docs/`](docs/).
 
 Tap the circled **?** beside scanner status to open About & Help. The panel scrolls within the docked keyboard, leaves the focused text field unchanged and pauses camera use until it is closed. Close it with the **Close** button or Android Back; scanning then resumes when camera permission is available.
 
