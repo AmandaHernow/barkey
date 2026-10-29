@@ -139,16 +139,19 @@ internal class InputConnectionEditor {
     fun hasUndoRecord(): Boolean = undoRecord != null
 
     fun backspace(connection: EditorConnection): BackspaceResult {
-        val snapshot = connection.cursorSnapshot(2, 0) ?: return BackspaceResult.FAILED
+        val snapshot = connection.cursorSnapshot(CONTEXT_CHARS, CONTEXT_CHARS)
+        if (snapshot == null) return sendBackspaceKey(connection, before = null)
+
+        if (!snapshot.selectionIsKnown) return sendBackspaceKey(connection, before = snapshot)
         if (snapshot.selectionIsKnown && snapshot.hasSelection) {
             val deleted = connection.commitText("", 1)
             if (!deleted) return BackspaceResult.FAILED
             undoRecord = null
             return BackspaceResult.DELETED
         }
-        val before = snapshot.textBeforeCursor ?: connection.textBeforeCursor(2) ?: return BackspaceResult.FAILED
-        if (before.isEmpty() && !snapshot.hasSelection) return BackspaceResult.NO_OP
-        if (!snapshot.selectionIsKnown) return BackspaceResult.FAILED
+        val before = snapshot.textBeforeCursor ?: connection.textBeforeCursor(CONTEXT_CHARS)
+            ?: return BackspaceResult.FAILED
+        if (before.isEmpty()) return BackspaceResult.NO_OP
 
         if (connection.deleteSurroundingTextInCodePoints(1, 0)) {
             undoRecord = null
@@ -157,7 +160,7 @@ internal class InputConnectionEditor {
 
         // The old API can return false when an editor does not implement code-point deletion.
         // Check that the attempted deletion made no change, then preserve UTF-16 surrogate pairs.
-        if (connection.textBeforeCursor(2) != before) return BackspaceResult.FAILED
+        if (connection.textBeforeCursor(2) != before.takeLast(2)) return BackspaceResult.FAILED
         val last = before.last()
         val utf16Length = if (last.isLowSurrogate() && before.length > 1 &&
             before[before.lastIndex - 1].isHighSurrogate()
@@ -166,6 +169,33 @@ internal class InputConnectionEditor {
         undoRecord = null
         return BackspaceResult.DELETED
     }
+
+    private fun sendBackspaceKey(
+        connection: EditorConnection,
+        before: EditorCursorSnapshot?,
+    ): BackspaceResult {
+        val down = connection.sendKeyEvent(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_DOWN)
+        val up = connection.sendKeyEvent(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_UP)
+        if (down || up) undoRecord = null
+        if (!down || !up) return BackspaceResult.FAILED
+
+        // An accepted key event is not proof that the editor deleted text. Keep that result
+        // distinct, and use snapshots only to decide whether another held repeat is worthwhile.
+        val after = connection.cursorSnapshot(CONTEXT_CHARS, CONTEXT_CHARS)
+            ?: return BackspaceResult.KEY_EVENT_SENT
+        if (before == null) return BackspaceResult.KEY_EVENT_SENT
+        if (after.selectionIsKnown && !after.hasSelection && after.textBeforeCursor.isNullOrEmpty()) {
+            return BackspaceResult.KEY_EVENT_SENT
+        }
+        val contextChanged = snapshotContextChanged(before, after)
+        return if (contextChanged) BackspaceResult.KEY_EVENT_CONTEXT_CHANGED else BackspaceResult.KEY_EVENT_SENT
+    }
+
+    private fun snapshotContextChanged(before: EditorCursorSnapshot, after: EditorCursorSnapshot): Boolean =
+        before.textBeforeCursor != after.textBeforeCursor || before.textAfterCursor != after.textAfterCursor ||
+            before.absoluteCursorPosition != after.absoluteCursorPosition ||
+            before.selectionIsKnown != after.selectionIsKnown ||
+            before.selectionStart != after.selectionStart || before.selectionEnd != after.selectionEnd
 
     fun insertSpace(connection: EditorConnection, sessionId: Long, recordUndo: Boolean): Boolean =
         insertText(connection, sessionId, " ", recordUndo)

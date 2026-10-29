@@ -27,4 +27,10 @@ internal data class EditorCursorSnapshot(
         get() = selectionStart != selectionEnd
 }
 
-internal enum class BackspaceResult { DELETED, NO_OP, FAILED }
+internal enum class BackspaceResult(val shouldRepeat: Boolean = false) {
+    DELETED(true),
+    KEY_EVENT_CONTEXT_CHANGED(true),
+    KEY_EVENT_SENT,
+    NO_OP,
+    FAILED,
+}

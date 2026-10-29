@@ -1,5 +1,6 @@
 package net.hernow.barkey
 
+import android.view.KeyEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -39,6 +40,14 @@ class BackspaceRepeatControllerTest {
         assertTrue(scheduler.tasks.isEmpty())
     }
 
+    @Test fun acceptedButUnverifiedEventDoesNotScheduleNoOpRepeats() {
+        val scheduler = FakeScheduler()
+        val controller = BackspaceRepeatController(scheduler, 500, 50)
+        assertFalse(controller.press { BackspaceResult.KEY_EVENT_SENT.shouldRepeat })
+        assertFalse(controller.isRepeating)
+        assertTrue(scheduler.tasks.isEmpty())
+    }
+
     @Test fun reachingStartOfFieldStopsRepeatingWithoutBoundaryRetries() {
         val scheduler = FakeScheduler()
         val controller = BackspaceRepeatController(scheduler, 500, 50)
@@ -47,15 +56,29 @@ class BackspaceRepeatControllerTest {
         var deletions = 0
 
         assertTrue(controller.press {
-            when (editor.backspace(connection)) {
-                BackspaceResult.DELETED -> { deletions++; true }
-                BackspaceResult.NO_OP, BackspaceResult.FAILED -> false
-            }
+            val result = editor.backspace(connection)
+            if (result == BackspaceResult.DELETED) deletions++
+            result.shouldRepeat
         })
         while (scheduler.tasks.isNotEmpty()) scheduler.runNext()
 
         assertEquals("", connection.value())
         assertEquals(3, deletions)
+        assertFalse(controller.isRepeating)
+        assertTrue(scheduler.tasks.isEmpty())
+    }
+
+    @Test fun unknownSelectionKeyFallbackRepeatsUntilSnapshotShowsFieldBoundary() {
+        val scheduler = FakeScheduler()
+        val controller = BackspaceRepeatController(scheduler, 500, 50)
+        val connection = UnknownSelectionTextConnection("ABC")
+        val editor = InputConnectionEditor()
+
+        assertTrue(controller.press { editor.backspace(connection).shouldRepeat })
+        while (scheduler.tasks.isNotEmpty()) scheduler.runNext()
+
+        assertEquals("", connection.value())
+        assertEquals(8, connection.keyEvents.size) // three down/up pairs plus one boundary pair
         assertFalse(controller.isRepeating)
         assertTrue(scheduler.tasks.isEmpty())
     }
@@ -159,6 +182,38 @@ class BackspaceRepeatControllerTest {
         }
         override fun performEditorAction(action: Int) = false
         override fun sendKeyEvent(keyCode: Int, action: Int) = false
+        fun value() = text.toString()
+    }
+
+    private class UnknownSelectionTextConnection(initialText: String) : EditorConnection {
+        override val identity: Any = Any()
+        private val text = StringBuilder(initialText)
+        private var cursor = initialText.length
+        val keyEvents = mutableListOf<Pair<Int, Int>>()
+
+        override fun finishComposingText() = true
+        override fun commitText(text: String, newCursorPosition: Int) = false
+        override fun cursorSnapshot(beforeLength: Int, afterLength: Int) = EditorCursorSnapshot(
+            textBeforeCursor = text.substring((cursor - beforeLength).coerceAtLeast(0), cursor),
+            textAfterCursor = text.substring(cursor, (cursor + afterLength).coerceAtMost(text.length)),
+            selectionStart = 0,
+            selectionEnd = 0,
+            absoluteCursorPosition = null,
+            selectionIsKnown = false,
+        )
+        override fun textBeforeCursor(length: Int) = text.substring((cursor - length).coerceAtLeast(0), cursor)
+        override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int) = false
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int) = false
+        override fun performEditorAction(action: Int) = false
+        override fun sendKeyEvent(keyCode: Int, action: Int): Boolean {
+            keyEvents += keyCode to action
+            if (keyCode == KeyEvent.KEYCODE_DEL && action == KeyEvent.ACTION_DOWN && cursor > 0) {
+                val start = text.offsetByCodePoints(cursor, -1)
+                text.delete(start, cursor)
+                cursor = start
+            }
+            return true
+        }
         fun value() = text.toString()
     }
 }

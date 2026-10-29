@@ -81,6 +81,7 @@ class InputConnectionEditorTest {
         val selected = FakeEditorConnection("abcdef", selectionStart = 2, selectionEnd = 4)
         assertEquals(BackspaceResult.DELETED, editor.backspace(selected))
         assertEquals("abef", selected.value())
+        assertTrue(selected.keyEvents.isEmpty())
 
         val unicode = FakeEditorConnection("A📦")
         assertEquals(BackspaceResult.DELETED, editor.backspace(unicode))
@@ -157,6 +158,55 @@ class InputConnectionEditorTest {
         assertFalse(editor.canUndo(editorConnection, 7L))
         assertFalse(editor.undo(editorConnection, 7L))
         assertEquals("left123456789-right", connection.toString())
+    }
+
+    @Test fun backspaceUsesEditorKeyEventWhenSelectionIsUnknown() {
+        val connection = FakeEditorConnection("left-right", cursor = 4).apply { selectionStateKnown = false }
+        val result = editor.backspace(connection)
+        assertEquals(BackspaceResult.KEY_EVENT_CONTEXT_CHANGED, result)
+        assertEquals("lef-right", connection.value())
+        assertEquals(
+            listOf(
+                android.view.KeyEvent.KEYCODE_DEL to android.view.KeyEvent.ACTION_DOWN,
+                android.view.KeyEvent.KEYCODE_DEL to android.view.KeyEvent.ACTION_UP,
+            ),
+            connection.keyEvents,
+        )
+        assertEquals(0, connection.deleteOperationCalls)
+    }
+
+    @Test fun unknownSelectionBackspaceKeyEventPreservesUnicodeCodePointDeletion() {
+        val connection = FakeEditorConnection("A📦").apply { selectionStateKnown = false }
+        val result = editor.backspace(connection)
+        assertEquals(BackspaceResult.KEY_EVENT_CONTEXT_CHANGED, result)
+        assertEquals("A", connection.value())
+    }
+
+    @Test fun unavailableSnapshotStillAllowsOneEditorHandledBackspaceTap() {
+        val connection = FakeEditorConnection("abc").apply { supportsSnapshot = false }
+        val result = editor.backspace(connection)
+        assertEquals(BackspaceResult.KEY_EVENT_SENT, result)
+        assertEquals("ab", connection.value())
+    }
+
+    @Test fun refusedBackspaceKeyEventIsNotReportedAsDeletion() {
+        val connection = FakeEditorConnection("abc").apply {
+            selectionStateKnown = false
+            acceptKeyEvents = false
+        }
+        val result = editor.backspace(connection)
+        assertEquals(BackspaceResult.FAILED, result)
+        assertEquals("abc", connection.value())
+    }
+
+    @Test fun keyEventFallbackLetsEditorDeleteUnknownSelectionWithoutDeletingAdjacentText() {
+        val connection = FakeEditorConnection("abcdef", selectionStart = 2, selectionEnd = 4).apply {
+            selectionStateKnown = false
+        }
+        val result = editor.backspace(connection)
+        assertEquals(BackspaceResult.KEY_EVENT_SENT, result)
+        assertEquals("abef", connection.value())
+        assertEquals(0, connection.deleteOperationCalls)
     }
 
     @Test fun fallbackCanConfirmCollapsedSelectionFromExtractedTextWhenSelectedTextIsNull() {
@@ -410,7 +460,8 @@ class InputConnectionEditorTest {
         extractedSelectionAvailable: Boolean = false,
     ): InputConnection {
         val content = StringBuilder(initial)
-        var position = cursor
+        var start = cursor
+        var end = cursor
         return Proxy.newProxyInstance(
             InputConnection::class.java.classLoader,
             arrayOf(InputConnection::class.java),
@@ -420,31 +471,34 @@ class InputConnectionEditorTest {
                 "getExtractedText" -> if (extractedSelectionAvailable) {
                     ExtractedText().apply {
                         text = "x".repeat(9_000)
-                        selectionStart = position
-                        selectionEnd = position
+                        selectionStart = start
+                        selectionEnd = end
                     }
                 } else null
                 "getSelectedText" -> selectedText
-                "getTextBeforeCursor" -> content.substring((position - (args!![0] as Int)).coerceAtLeast(0), position)
-                "getTextAfterCursor" -> content.substring(position, (position + (args!![0] as Int)).coerceAtMost(content.length))
+                "getTextBeforeCursor" -> content.substring((start - (args!![0] as Int)).coerceAtLeast(0), start)
+                "getTextAfterCursor" -> content.substring(end, (end + (args!![0] as Int)).coerceAtMost(content.length))
                 "finishComposingText" -> true
                 "commitText" -> {
                     val value = args!![0].toString()
-                    content.insert(position, value)
-                    position += value.length
+                    content.replace(start, end, value)
+                    start += value.length
+                    end = start
                     true
                 }
                 "deleteSurroundingTextInCodePoints" -> {
                     val beforeCount = args!![0] as Int
-                    val start = content.offsetByCodePoints(position, -beforeCount)
-                    content.delete(start, position)
-                    position = start
+                    val deleteStart = content.offsetByCodePoints(start, -beforeCount)
+                    content.delete(deleteStart, start)
+                    start = deleteStart
+                    end = start
                     true
                 }
                 "deleteSurroundingText" -> {
-                    val start = position - (args!![0] as Int)
-                    content.delete(start, position)
-                    position = start
+                    val deleteStart = start - (args!![0] as Int)
+                    content.delete(deleteStart, start)
+                    start = deleteStart
+                    end = start
                     true
                 }
                 "toString" -> content.toString()
@@ -472,11 +526,14 @@ class InputConnectionEditorTest {
         private var end = selectionEnd
         var supportsSnapshot = true
         var finishComposingResult = true
+        var selectionStateKnown = true
+        var acceptKeyEvents = true
         var rejectDeletion = false
         var rejectActions = false
         val actions = mutableListOf<Int>()
         val keyEvents = mutableListOf<Pair<Int, Int>>()
         val committedText = mutableListOf<String>()
+        var deleteOperationCalls = 0
 
         override fun finishComposingText() = finishComposingResult
 
@@ -490,7 +547,7 @@ class InputConnectionEditorTest {
 
         override fun cursorSnapshot(beforeLength: Int, afterLength: Int): EditorCursorSnapshot? {
             if (!supportsSnapshot) return null
-            if (start != end) return EditorCursorSnapshot(null, null, start, end, end)
+            if (start != end && selectionStateKnown) return EditorCursorSnapshot(null, null, start, end, end)
             val beforeStart = (start - beforeLength).coerceAtLeast(0)
             val afterEnd = (end + afterLength).coerceAtMost(content.length)
             return EditorCursorSnapshot(
@@ -498,13 +555,15 @@ class InputConnectionEditorTest {
                 content.substring(end, afterEnd),
                 0,
                 0,
-                end,
+                if (selectionStateKnown) end else null,
+                selectionIsKnown = selectionStateKnown,
             )
         }
 
         override fun textBeforeCursor(length: Int): String = content.substring((start - length).coerceAtLeast(0), start)
 
         override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean {
+            deleteOperationCalls++
             if (rejectDeletion || start != end) return false
             val deleteStart = content.offsetByCodePoints(start, -beforeLength)
             val deleteEnd = content.offsetByCodePoints(start, afterLength)
@@ -515,6 +574,7 @@ class InputConnectionEditorTest {
         }
 
         override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            deleteOperationCalls++
             if (rejectDeletion || start != end) return false
             content.delete(start - beforeLength, start + afterLength)
             start -= beforeLength
@@ -529,6 +589,18 @@ class InputConnectionEditorTest {
 
         override fun sendKeyEvent(keyCode: Int, action: Int): Boolean {
             keyEvents += keyCode to action
+            if (!acceptKeyEvents) return false
+            if (keyCode == android.view.KeyEvent.KEYCODE_DEL && action == android.view.KeyEvent.ACTION_DOWN) {
+                if (start != end) {
+                    content.delete(start, end)
+                    end = start
+                } else if (start > 0) {
+                    val deleteStart = content.offsetByCodePoints(start, -1)
+                    content.delete(deleteStart, start)
+                    start = deleteStart
+                    end = start
+                }
+            }
             return true
         }
 

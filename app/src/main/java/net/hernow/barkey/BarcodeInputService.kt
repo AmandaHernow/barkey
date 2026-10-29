@@ -1377,7 +1377,7 @@ class BarcodeInputService : InputMethodService() {
                             currentInputConnection !== connection
                         ) BackspaceResult.FAILED else performBackspace(connection, sessionId, refreshUndo)
                         refreshUndo = false
-                        result == BackspaceResult.DELETED
+                        result.shouldRepeat
                     }
                     true
                 }
