@@ -1,0 +1,15 @@
+<resources>
+    <color name="keyboard_background">#1E2227</color>
+    <color name="keyboard_surface">#30373E</color>
+    <color name="keyboard_surface_pressed">#3A434C</color>
+    <color name="keyboard_surface_disabled">#282D32</color>
+    <color name="keyboard_outline">#48515A</color>
+    <color name="keyboard_outline_disabled">#363D44</color>
+    <color name="keyboard_text_primary">#F1F3F5</color>
+    <color name="keyboard_text_secondary">#BCC4CC</color>
+    <color name="keyboard_text_disabled">#909AA3</color>
+    <color name="keyboard_status_surface">#292F35</color>
+    <color name="keyboard_camera_surface">#111518</color>
+    <color name="keyboard_engraving_text">#929BA3</color>
+    <color name="keyboard_engraving_shadow">#272D33</color>
+</resources>

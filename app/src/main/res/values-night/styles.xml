@@ -1,0 +1,9 @@
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorBackground">@color/keyboard_background</item>
+        <item name="android:windowBackground">@color/keyboard_background</item>
+        <item name="android:textColorPrimary">@color/keyboard_text_primary</item>
+        <item name="android:textColorSecondary">@color/keyboard_text_secondary</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

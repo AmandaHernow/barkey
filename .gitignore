@@ -1,0 +1,40 @@
+# Modified by Amanda Hernow for BarKey in 2026; based on the 2020 Android Barcode Keyboard project.
+# Local task handoff and workstation configuration
+/HANDOFF.md
+/local.properties
+/.idea/**
+!/.idea/codeStyles/
+!/.idea/codeStyles/**
+!/.idea/.name
+*.iml
+.DS_Store
+
+# Android and Gradle build products/caches
+**/build/
+/.gradle/
+**/.gradle/
+/.kotlin/
+**/.kotlin/
+/captures/
+/.externalNativeBuild/
+/.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.log
+*.tmp
+
+# Signing keys, local signing configuration, and secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.pem
+/key.properties
+/keystore.properties
+.env
+.env.*
+!.env.example

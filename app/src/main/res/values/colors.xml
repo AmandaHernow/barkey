@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modified by Amanda Hernow for BarKey in 2026; based on the 2020 Android Barcode Keyboard project. -->
+<resources>
+    <color name="keyboard_background">#F2F4F6</color>
+    <color name="keyboard_surface">#FFFFFF</color>
+    <color name="keyboard_surface_pressed">#E7EBEF</color>
+    <color name="keyboard_surface_disabled">#E8EAED</color>
+    <color name="keyboard_outline">#C7CDD3</color>
+    <color name="keyboard_outline_disabled">#D7DBE0</color>
+    <color name="keyboard_text_primary">#20262D</color>
+    <color name="keyboard_text_secondary">#59636E</color>
+    <color name="keyboard_text_disabled">#606A73</color>
+    <color name="keyboard_status_surface">#E5E9ED</color>
+    <color name="keyboard_camera_surface">#DDE2E6</color>
+    <color name="keyboard_engraving_text">#6D7781</color>
+    <color name="keyboard_engraving_shadow">#FFFFFF</color>
+</resources>

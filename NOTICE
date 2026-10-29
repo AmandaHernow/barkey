@@ -1,0 +1,26 @@
+BarKey
+Copyright 2020 Raphael Michel (original Android Barcode Keyboard work).
+Copyright 2026 Amanda Hernow (BarKey modifications and further development).
+
+BarKey is derived from Android Barcode Keyboard by Raphael Michel,
+https://github.com/raphaelm/android-barcode-keyboard, originally distributed
+under the Apache License, Version 2.0. BarKey has been substantially modified
+and further developed. The 2026 copyright notice applies to those modifications
+and does not claim ownership of Raphael Michel's original work.
+
+Third-party components used by the application:
+
+- ZXing Core, Copyright ZXing authors, Apache License 2.0.
+  https://github.com/zxing/zxing
+- AndroidX and CameraX, Apache License 2.0.
+  https://github.com/androidx/androidx
+- Guava, Copyright Google LLC, Apache License 2.0.
+  https://github.com/google/guava
+- JUnit 4.13.2 (test dependency), Eclipse Public License 1.0.
+  https://github.com/junit-team/junit4
+- Gradle Wrapper scripts and wrapper JAR, Copyright Gradle, Inc. and/or its
+  licensors, Apache License 2.0. The wrapper distribution itself is supplied
+  by Gradle; see https://gradle.org/ for its notices.
+
+This notice is informational. Each third-party component remains subject to
+its own licence and applicable upstream notices.

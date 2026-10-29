@@ -1,0 +1,10 @@
+// Modified by Amanda Hernow for BarKey in 2026; based on the 2020 Android Barcode Keyboard project.
+buildscript {
+    dependencies {
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21'
+    }
+}
+
+plugins {
+    id 'com.android.application' version '9.4.1' apply false
+}

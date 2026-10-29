@@ -1,0 +1,12 @@
+<resources>
+    <string-array name="scan_suffix_entries">
+        <item>@string/suffix_none</item>
+        <item>@string/suffix_enter</item>
+        <item>@string/suffix_tab</item>
+    </string-array>
+    <string-array name="scan_suffix_values">
+        <item>none</item>
+        <item>enter</item>
+        <item>tab</item>
+    </string-array>
+</resources>

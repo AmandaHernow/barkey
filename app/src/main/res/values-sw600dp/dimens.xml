@@ -1,0 +1,4 @@
+<resources>
+    <dimen name="scanner_preview_min_height">120dp</dimen>
+    <dimen name="scanner_preview_max_height">380dp</dimen>
+</resources>
