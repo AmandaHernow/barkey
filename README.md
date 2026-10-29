@@ -1,8 +1,6 @@
 # BarKey
 
-<p align="center">
-  <img src="artwork/BarKey_README_Banner.png" alt="BarKey banner with the official BarKey wordmark and Android app icon." width="1200">
-</p>
+![BarKey logo with “BY AMANDA HERNOW”](artwork/BarKey_README_Banner.png)
 
 **Free, privacy-focused barcode and QR scanner keyboard for Android**
 
