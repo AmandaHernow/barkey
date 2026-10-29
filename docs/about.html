@@ -165,18 +165,38 @@
         </ul>
         <p>Supported formats are configured in the app. Camera behavior and editor actions can vary by device and the application containing the text field.</p>
       </section>
-      <div class="two-up">
-        <section class="card" aria-labelledby="why"><span class="section-kicker">The thinking behind it</span><h2 id="why">Useful software should stay accessible</h2>
-          <p>I create free software because useful tools should not require an account, an unnecessary subscription, or a stream of advertisements. In my own applications, I oppose unnecessary subscriptions, advertising, tracking, and paywalls. BarKey has no paid features; an optional donation does not unlock anything.</p>
-        </section>
-        <section class="card" aria-labelledby="privacy"><span class="section-kicker">Privacy by design</span><h2 id="privacy">Local scanning, clear boundaries</h2>
-          <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan and Undo data is held in memory only as needed by the active input session.</p>
-          <a href="privacy-policy.html">Read the Android app Privacy Policy</a>
-        </section>
-      </div>
+      <section class="card" aria-labelledby="why"><span class="section-kicker">The thinking behind it</span><h2 id="why">Why I built BarKey</h2>
+        <p>BarKey started with a simple idea. I wanted to scan a barcode and have the result go straight into whatever text field I was already using, without switching between applications or copying and pasting.</p>
+        <p>I enjoy finding practical solutions to everyday problems, and this seemed like something that should be much simpler than it often is.</p>
+        <p>My goal with BarKey was to make a straightforward tool that does exactly what it needs to do, without unnecessary features getting in the way.</p>
+        <p>No registration, no subscriptions, no advertisements and no complicated setup beyond what Android requires to enable a keyboard.</p>
+        <p>Just open the keyboard, scan your code and carry on working.</p>
+      </section>
+      <section class="card" aria-labelledby="subscriptions"><span class="section-kicker">My approach to software</span><h2 id="subscriptions">Software shouldn’t always come with a subscription</h2>
+        <p>I’m tired of seeing everyday software turn into yet another monthly payment. It sometimes feels as though every little tool now needs a subscription, an account or some kind of paid upgrade before you’re allowed to use it properly.</p>
+        <p>I understand that developing software takes time and resources, but I don’t believe that means every useful application needs to become a subscription service.</p>
+        <p>I want to do my part in pushing back against that culture.</p>
+        <p>That’s one of the reasons I create free and open-source software. I want people to be able to download an application, use it for what it was made for, and not have to worry about recurring payments, advertisements or features hidden behind a paywall.</p>
+        <p>I also believe that privacy shouldn’t be a premium feature. People shouldn’t have to pay extra just to avoid being tracked or having their personal information collected unnecessarily.</p>
+        <p>Making my projects open source is part of that philosophy. Anyone can inspect the code, see how the application works and, within the terms of its licence, make improvements or build upon it.</p>
+        <p>I don’t expect my projects to change the software industry, but I can at least contribute something different.</p>
+        <p>BarKey is one of those contributions. It’s free, open source, and I intend to keep it that way.</p>
+      </section>
+      <section class="card" aria-labelledby="privacy"><span class="section-kicker">Privacy by design</span><h2 id="privacy">Local scanning, clear boundaries</h2>
+        <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan and Undo data is held in memory only as needed by the active input session.</p>
+        <a href="privacy-policy.html">Read the Android app Privacy Policy</a>
+      </section>
       <section class="card developer-card" aria-labelledby="developer">
         <img class="developer-photo" src="assets/amanda.jpg" alt="Amanda Hernow" width="640" height="640" loading="lazy" decoding="async">
-        <div><span class="section-kicker">About the developer</span><h2 class="developer-name" id="developer">Amanda Hernow</h2><p class="developer-role">Independent Developer</p><p>I build practical software with privacy as a default, not an expensive extra. I aim to explain what my applications do, how they handle data, and where their limits are.</p></div>
+        <div><span class="section-kicker">About the developer</span><h2 class="developer-name" id="developer">About me</h2><p class="developer-role">Amanda Hernow · Independent Developer</p>
+          <p>I’m Amanda Hernow, an independent developer who enjoys technology, solving problems and creating practical software.</p>
+          <p>I like taking something that feels unnecessarily complicated and finding a way to make it simpler. That’s often where my projects begin.</p>
+          <p>I believe software should be useful, accessible and honest about what it does. I don’t like unnecessary subscriptions, intrusive advertising or applications that collect more information than they need.</p>
+          <p>That’s why I try to build my projects around simplicity, privacy and transparency.</p>
+          <p>I make my applications available for free, and I believe sharing the source code is an important part of being transparent about how software works.</p>
+          <p>I’m not trying to build a collection of subscription services. I want to create tools that people can actually use without worrying about what they’ll have to pay for next.</p>
+          <p>BarKey is one of those projects, and you can find some of my other work below.</p>
+        </div>
       </section>
       <section class="card" aria-labelledby="origin"><span class="section-kicker">Open source</span><h2 id="origin">Open Source &amp; Credits</h2>
         <p>BarKey — developed by Amanda Hernow — is licensed under the Apache License 2.0. Barcode decoding runs locally with <a href="https://github.com/zxing-cpp/zxing-cpp">ZXing-C++ Android 3.1.1</a> as the primary decoder and <a href="https://github.com/zxing/zxing">ZXing Core 3.5.4</a> as a Java fallback. Both projects use Apache License 2.0.</p>
@@ -215,8 +235,11 @@
       </section>
       <section class="card support-card" aria-labelledby="support">
         <div class="support-copy"><span class="section-kicker">Optional support</span><h2 id="support">Help keep development going</h2>
-          <p>BarKey is free to use. If you want to support independent development, you can optionally buy Amanda a coffee through PayPal. A donation is voluntary and does not provide features, access, or other benefits. BarKey remains fully usable without donating. PayPal is a separate service and applies its own privacy practices.</p>
-          <p class="small">There are no paid features, subscriptions, or locked functionality. Donations are optional and never required to use BarKey.</p>
+          <p>All my applications are free to use, and BarKey is no exception.</p>
+          <p>I develop these projects because I enjoy creating useful software and believe that not everything needs to come with a price tag.</p>
+          <p>If you find BarKey useful and would like to support its continued development, you’re welcome to buy me a coffee through PayPal.</p>
+          <p>It’s completely optional. There are no paid features, subscriptions or benefits reserved for people who donate.</p>
+          <p>Whether you donate or not, BarKey remains free and fully functional. PayPal is a separate service and applies its own privacy practices.</p>
         </div>
         <div class="support-visual">
           <img class="support-qr" src="assets/paypal-qr.png" alt="QR code linking to Amanda Hernow’s PayPal donation page" width="444" height="444" loading="lazy" decoding="async">
