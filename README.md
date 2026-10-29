@@ -4,7 +4,7 @@
 
 **Developer:** Amanda Hernow
 
-**Version:** 1.0
+**Version:** 1.0.1
 
 **Repository:** [github.com/AmandaHernow/barkey](https://github.com/AmandaHernow/barkey)
 
@@ -62,8 +62,8 @@ BarKey is not Direct Boot aware. Android's warning that an enabled IME may be un
 
 | Control | Behaviour |
 | --- | --- |
-| Undo | Attempts to undo the latest safely verified BarKey scan (when no scan suffix is configured), Space insertion or explicit newline. It is enabled only while the active editor connection, input session, cursor/selection and bounded surrounding text still match. Private/password editors, editors without reliable snapshot support and selected-text replacements cannot be undone. Original selected text is not restored. |
-| Backspace | Deletes the selected text or the Unicode code point immediately before the cursor, when the editor supports the operation. |
+| Undo | Attempts to undo the latest safely verified BarKey scan or Space insertion. It is enabled only while the active editor connection, input session, cursor/selection and bounded surrounding text still match. Private/password editors and selected-text replacements cannot be undone. Original selected text is not restored. |
+| Backspace | Tap to delete the selection or the Unicode code point immediately before the cursor. Hold to repeat at Android's standard key repeat timing. |
 | Space | Inserts one space at the current cursor/selection. |
 | Left / Right | Requests cursor movement in the current field. Selection and field-boundary behaviour depends on the receiving editor. |
 | Tab | Requests `IME_ACTION_NEXT` only when the field explicitly advertises `IME_ACTION_NEXT` or `IME_FLAG_NAVIGATE_NEXT`. Otherwise it is a no-op: BarKey sends no Tab key, Enter, Done or form submission, and does not hide the keyboard. The receiving app controls focus traversal and may handle an advertised action in its own way. |
@@ -73,7 +73,7 @@ BarKey is not Direct Boot aware. Android's warning that an enabled IME may be un
 
 The scanner status row contains the Fast/Accurate mode button immediately to the left of **?**. The button label always shows the active mode. Mode selection is held only for the current keyboard service lifetime and resets to Fast when that service is recreated. Tap the preview to focus at that location. On devices with flash, tap the flashlight control at the preview's upper-left to switch the torch on or off; BarKey turns it off when the keyboard closes or Help is opened.
 
-Android `InputConnection` support varies among native fields, Chrome forms and WebView/custom forms. In particular, editor actions, surrounding-text queries, key events and field navigation may be unavailable or interpreted differently by the host. BarKey avoids speculative focus changes and disables unsafe Undo, but no universal compatibility with every form can be promised. Tab intentionally does nothing unless the field explicitly advertises forward navigation; Android does not let an IME universally inspect or control another app's focus traversal. The managed `scan_suffix` is the only action triggered automatically after a scan; interactive Enter and Tab controls do not run automatically. Undo context is cleared when another editing action changes the cursor or field, when the keyboard is hidden or switched, or when the input session ends.
+Android `InputConnection` support varies among native fields, Chrome forms and WebView/custom forms. In particular, editor actions, surrounding-text queries, key events and field navigation may be unavailable or interpreted differently by the host. BarKey uses bounded surrounding-text queries and safe fallbacks, but Undo remains unavailable when an editor cannot provide enough reliable context. A configured Enter or Tab `scan_suffix` may submit a form or move focus; Undo cannot reverse that action and is available only while the same field and inserted scan remain safely verifiable. Tab intentionally does nothing unless the field explicitly advertises forward navigation; Android does not let an IME universally inspect or control another app's focus traversal. The managed `scan_suffix` is the only action triggered automatically after a scan; interactive Enter and Tab controls do not run automatically. Undo context is cleared when another editing action changes the cursor or field, when the keyboard is hidden or switched, or when the input session ends.
 
 ## Android compatibility
 

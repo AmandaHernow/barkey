@@ -27,23 +27,23 @@ internal class InputConnectionEditor {
     ): Boolean {
         undoRecord = null
         val before = if (recordUndo && value.isNotEmpty() && value.length <= MAX_UNDO_TEXT_LENGTH) {
-            connection.cursorSnapshot(CONTEXT_CHARS, CONTEXT_CHARS)
-                ?.takeIf { it.selectionStart == it.selectionEnd && it.absoluteCursorPosition != null }
+            connection.cursorSnapshot(CONTEXT_CHARS, CONTEXT_CHARS)?.takeIf {
+                it.selectionStart == it.selectionEnd && it.textBeforeCursor != null && it.textAfterCursor != null
+            }
         } else {
             null
         }
         if (!connection.commitText(value, 1)) return false
 
         if (before != null) {
-            val initialCursor = before.absoluteCursorPosition ?: return true
             val expectedBefore = before.textBeforeCursor?.plus(value)
             val expectedAfter = before.textAfterCursor
-            val expectedCursor = initialCursor + value.length
             if (expectedBefore != null && expectedAfter != null) {
                 val after = connection.cursorSnapshot(expectedBefore.length, expectedAfter.length)
                 if (after != null && after.selectionStart == after.selectionEnd &&
                     after.textBeforeCursor == expectedBefore && after.textAfterCursor == expectedAfter &&
-                    after.absoluteCursorPosition == expectedCursor
+                    (before.absoluteCursorPosition == null ||
+                        after.absoluteCursorPosition == before.absoluteCursorPosition + value.length)
                 ) {
                     undoRecord = UndoRecord(
                         connectionIdentity = connection.identity,
@@ -51,8 +51,8 @@ internal class InputConnectionEditor {
                         insertedText = value,
                         expectedBefore = expectedBefore,
                         expectedAfter = expectedAfter,
-                        expectedCursorPosition = expectedCursor,
-                        originalCursorPosition = initialCursor,
+                        expectedCursorPosition = after.absoluteCursorPosition,
+                        originalCursorPosition = before.absoluteCursorPosition,
                     )
                 }
             }
@@ -68,18 +68,25 @@ internal class InputConnectionEditor {
             undoRecord = null
             return false
         }
-        if (!matches(record, connection, sessionId)) {
-            undoRecord = null
-            return false
+        val result = matches(record, connection, sessionId)
+        when (result) {
+            MatchResult.MATCH -> Unit
+            MatchResult.CHANGED -> undoRecord = null
+            MatchResult.UNKNOWN -> Unit
         }
-        return true
+        return result == MatchResult.MATCH
     }
 
     fun undo(connection: EditorConnection?, sessionId: Long): Boolean {
         val record = undoRecord ?: return false
-        if (connection == null || !matches(record, connection, sessionId)) {
+        if (connection == null) {
             undoRecord = null
             return false
+        }
+        when (matches(record, connection, sessionId)) {
+            MatchResult.MATCH -> Unit
+            MatchResult.CHANGED -> { undoRecord = null; return false }
+            MatchResult.UNKNOWN -> return false
         }
 
         if (connection.deleteSurroundingTextInCodePoints(
@@ -93,16 +100,18 @@ internal class InputConnectionEditor {
 
         // API 24–32 editors can reject the code-point method. Verify the complete snapshot again
         // before deleting the exact UTF-16 length of the known scan.
-        if (!matches(record, connection, sessionId)) {
-            undoRecord = null
-            return false
+        when (matches(record, connection, sessionId)) {
+            MatchResult.MATCH -> Unit
+            MatchResult.CHANGED -> undoRecord = null
+            MatchResult.UNKNOWN -> return false
         }
+        if (undoRecord == null) return false
         val deleted = connection.deleteSurroundingText(record.insertedText.length, 0)
         undoRecord = null
         return deleted && verifyUndoResult(record, connection)
     }
 
-    /** Invalidates a record as soon as Android reports a selection or cursor move. */
+    /** Uses Android selection notifications as a prompt to recheck the live editor context. */
     fun onSelectionChanged(
         connection: EditorConnection?,
         sessionId: Long,
@@ -110,10 +119,12 @@ internal class InputConnectionEditor {
         selectionEnd: Int,
     ) {
         val record = undoRecord ?: return
-        if (connection == null || connection.identity !== record.connectionIdentity ||
-            sessionId != record.sessionId || selectionStart != record.expectedCursorPosition ||
-            selectionEnd != record.expectedCursorPosition
-        ) {
+        if (connection == null || connection.identity !== record.connectionIdentity || sessionId != record.sessionId) {
+            undoRecord = null
+            return
+        }
+        if (selectionStart == record.expectedCursorPosition && selectionEnd == record.expectedCursorPosition) return
+        if (matches(record, connection, sessionId) == MatchResult.CHANGED) {
             undoRecord = null
         }
     }
@@ -155,14 +166,12 @@ internal class InputConnectionEditor {
     fun enter(
         connection: EditorConnection,
         editorInfo: EditorInfo?,
-        sessionId: Long = 0L,
-        recordUndo: Boolean = false,
     ): Boolean {
         val imeOptions = editorInfo?.imeOptions ?: 0
         val inputType = editorInfo?.inputType ?: 0
         return when (val command = EditorCommandPolicy.enter(imeOptions, inputType)) {
             is EnterCommand.PerformEditorAction -> connection.performEditorAction(command.action)
-            EnterCommand.InsertNewline -> insertText(connection, sessionId, "\n", recordUndo)
+            EnterCommand.InsertNewline -> insertText(connection, 0L, "\n", recordUndo = false)
             EnterCommand.SendEnterKey -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
         }
     }
@@ -174,20 +183,23 @@ internal class InputConnectionEditor {
         }
     }
 
-    private fun matches(record: UndoRecord, connection: EditorConnection, sessionId: Long): Boolean {
-        if (connection.identity !== record.connectionIdentity || record.sessionId != sessionId) return false
-        val snapshot = connection.cursorSnapshot(record.expectedBefore.length, record.expectedAfter.length) ?: return false
-        return snapshot.selectionStart == snapshot.selectionEnd &&
-            snapshot.absoluteCursorPosition == record.expectedCursorPosition &&
-            snapshot.textBeforeCursor == record.expectedBefore &&
-            snapshot.textAfterCursor == record.expectedAfter
+    private fun matches(record: UndoRecord, connection: EditorConnection, sessionId: Long): MatchResult {
+        if (connection.identity !== record.connectionIdentity || record.sessionId != sessionId) return MatchResult.CHANGED
+        val snapshot = connection.cursorSnapshot(record.expectedBefore.length, record.expectedAfter.length)
+            ?: return MatchResult.UNKNOWN
+        if (snapshot.selectionStart != snapshot.selectionEnd) return MatchResult.CHANGED
+        if (snapshot.textBeforeCursor == null || snapshot.textAfterCursor == null) return MatchResult.UNKNOWN
+        val matches = snapshot.textBeforeCursor == record.expectedBefore &&
+            snapshot.textAfterCursor == record.expectedAfter &&
+            (record.expectedCursorPosition == null || snapshot.absoluteCursorPosition == record.expectedCursorPosition)
+        return if (matches) MatchResult.MATCH else MatchResult.CHANGED
     }
 
     private fun verifyUndoResult(record: UndoRecord, connection: EditorConnection): Boolean {
         val snapshot = connection.cursorSnapshot(record.expectedBefore.length, record.expectedAfter.length) ?: return false
         val originalBefore = record.expectedBefore.removeSuffix(record.insertedText)
         return snapshot.selectionStart == snapshot.selectionEnd &&
-            snapshot.absoluteCursorPosition == record.originalCursorPosition &&
+            (record.originalCursorPosition == null || snapshot.absoluteCursorPosition == record.originalCursorPosition) &&
             snapshot.textBeforeCursor == originalBefore &&
             snapshot.textAfterCursor == record.expectedAfter
     }
@@ -204,9 +216,11 @@ internal class InputConnectionEditor {
         val insertedText: String,
         val expectedBefore: String,
         val expectedAfter: String,
-        val expectedCursorPosition: Int,
-        val originalCursorPosition: Int,
+        val expectedCursorPosition: Int?,
+        val originalCursorPosition: Int?,
     )
+
+    private enum class MatchResult { MATCH, CHANGED, UNKNOWN }
 
     private companion object {
         const val CONTEXT_CHARS = 16

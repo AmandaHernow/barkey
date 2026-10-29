@@ -86,12 +86,12 @@
     <string name="help_scan_mode_accurate">Accurate — Uses additional processing for difficult, angled, damaged or inverted barcodes. It may be slower.</string>
     <string name="help_tap_to_focus">Tap to focus — Tap the camera preview to request focus at that location.</string>
     <string name="help_torch">Torch — On supported devices, tap the flashlight icon to illuminate the scanning area.</string>
-    <string name="help_control_undo">Undo — Safely undo the latest BarKey scan without a configured suffix, Space or explicitly inserted newline when bounded editor context still matches. It is disabled for password/private fields, editors without reliable snapshots, and after the cursor, selection, field or surrounding text changes.</string>
+    <string name="help_control_undo">Undo — Safely undo the latest BarKey scan or Space insertion when bounded editor context still matches. A configured Enter or Tab suffix may submit or move focus; Undo cannot reverse that action and is available only if the same field and scan remain verifiable. Undo is disabled for password/private fields and unsafe selections.</string>
     <string name="help_control_cursor">Left / Right — Move the cursor within the current field.</string>
-    <string name="help_control_backspace">Backspace — Delete the selection or the character before the cursor.</string>
+    <string name="help_control_backspace">Backspace — Tap to delete the selection or previous character. Press and hold to repeat deletion.</string>
     <string name="help_control_space">Space — Insert a space at the cursor.</string>
     <string name="help_control_tab">Tab — Requests the Next action only when the editor explicitly advertises forward navigation. Otherwise BarKey does nothing: it does not inject a Tab key, submit the form or hide the keyboard. Chrome, WebView and other apps control focus traversal.</string>
-    <string name="help_control_enter">Enter — Perform the field action, or insert a newline in a multiline field when appropriate. A safely verified newline can be undone.</string>
+    <string name="help_control_enter">Enter — Perform the field action, or insert a newline in a multiline field when appropriate. Enter actions and inserted newlines cannot be undone.</string>
     <string name="help_control_switch">Switch Keyboard — Return to the previous keyboard when Android supports it, or open the system keyboard picker.</string>
     <string name="help_navigation_note">Tab and Enter behaviour depends on the receiving application and the field. BarKey cannot control arbitrary focus traversal inside another app. Tab is intentionally a no-op unless the field advertises NEXT navigation; an app may still handle an advertised action in its own way.</string>
     <string name="help_resize_note">Resize BarKey by dragging the small handle above the camera preview. The keyboard stays docked; its preview grows or shrinks while editing controls keep their normal size.</string>

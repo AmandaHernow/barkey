@@ -67,6 +67,15 @@ class BarcodeInputService : InputMethodService() {
     private val cameraLifecycle by lazy { ServiceCameraLifecycle() }
     private val analyzerExecutor by lazy { Executors.newSingleThreadExecutor() }
     private val inputEditor = InputConnectionEditor()
+    // This handler is separate from resultCallbackToken so scanner callbacks remain untouched.
+    private val backspaceRepeat = BackspaceRepeatController(
+        scheduler = object : BackspaceRepeatController.Scheduler {
+            override fun postDelayed(task: Runnable, delayMillis: Long) { mainHandler.postDelayed(task, delayMillis) }
+            override fun remove(task: Runnable) { mainHandler.removeCallbacks(task) }
+        },
+        timeoutMillis = ViewConfiguration.getKeyRepeatTimeout().toLong(),
+        intervalMillis = ViewConfiguration.getKeyRepeatDelay().toLong(),
+    )
     private val scanModes = ScanModeController()
     private val barcodeDecoder = HybridBarcodeDecoder()
     private val decodeTiming = DecodeTimingRecorder()
@@ -105,6 +114,7 @@ class BarcodeInputService : InputMethodService() {
     @Volatile
     private var resultCallbackToken: Any = Any()
     private var currentSuffix = ScanSuffix.NONE
+    private var suppressBackspaceClick = false
     @Volatile
     private var cameraRequestId = 0L
 
@@ -355,6 +365,14 @@ class BarcodeInputService : InputMethodService() {
         val undo = toolbarButton(getString(R.string.undo_short), getString(R.string.undo_scan)) { undoScan() }.apply {
             isEnabled = false
         }
+        val backspaceButton = toolbarButton(getString(R.string.backspace_symbol), getString(R.string.backspace)) {
+            if (suppressBackspaceClick) {
+                suppressBackspaceClick = false
+            } else {
+                editCurrentField { connection, _ -> inputEditor.backspace(connection) }
+            }
+        }
+        installBackspaceRepeat(backspaceButton)
         val editingButtons = listOf(
             undo,
             toolbarButton(getString(R.string.left_arrow), getString(R.string.move_cursor_left)) {
@@ -363,20 +381,13 @@ class BarcodeInputService : InputMethodService() {
             toolbarButton(getString(R.string.right_arrow), getString(R.string.move_cursor_right)) {
                 editCurrentField { connection, _ -> inputEditor.moveCursorRight(connection) }
             },
-            toolbarButton(getString(R.string.backspace_symbol), getString(R.string.backspace)) {
-                editCurrentField { connection, _ -> inputEditor.backspace(connection) }
-            },
+            backspaceButton,
             toolbarButton(getString(R.string.tab_short), getString(R.string.next_field)) {
                 requestNextField()
             },
             toolbarButton(getString(R.string.enter_short), getString(R.string.enter_action)) {
                 editCurrentField { connection, editorInfo ->
-                    inputEditor.enter(
-                        connection,
-                        editorInfo,
-                        currentSessionId,
-                        canTrackUndo(currentInputEditorInfo),
-                    )
+                    inputEditor.enter(connection, editorInfo)
                 }
             },
         )
@@ -402,6 +413,7 @@ class BarcodeInputService : InputMethodService() {
             isFocusable = false
             isFocusableInTouchMode = false
             setOnClickListener {
+                stopBackspaceRepeat()
                 inputEditor.clearUndo()
                 refreshUndoButton()
                 requestHideSelf(0)
@@ -681,6 +693,7 @@ class BarcodeInputService : InputMethodService() {
     }
 
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
+        stopBackspaceRepeat()
         super.onStartInput(info, restarting)
         clearPendingResults()
         inputEditor.clearUndo()
@@ -746,6 +759,7 @@ class BarcodeInputService : InputMethodService() {
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        stopBackspaceRepeat()
         resetHelpPanelForHiddenWindow()
         inputEditor.clearUndo()
         refreshUndoButton()
@@ -754,6 +768,7 @@ class BarcodeInputService : InputMethodService() {
     }
 
     override fun onFinishInput() {
+        stopBackspaceRepeat()
         stopCamera()
         clearPendingResults()
         inputEditor.clearUndo()
@@ -763,6 +778,7 @@ class BarcodeInputService : InputMethodService() {
     }
 
     override fun onWindowHidden() {
+        stopBackspaceRepeat()
         resetHelpPanelForHiddenWindow()
         inputEditor.clearUndo()
         refreshUndoButton()
@@ -787,6 +803,7 @@ class BarcodeInputService : InputMethodService() {
     }
 
     override fun onDestroy() {
+        stopBackspaceRepeat()
         stopCamera()
         clearPendingResults()
         inputEditor.clearUndo()
@@ -958,6 +975,7 @@ class BarcodeInputService : InputMethodService() {
 
     private fun openHelpPanel() {
         if (helpVisible) return
+        stopBackspaceRepeat()
         helpVisible = true
         clearPendingResults()
         keyboardRoot?.visibility = View.GONE
@@ -1228,7 +1246,7 @@ class BarcodeInputService : InputMethodService() {
                     connection = AndroidEditorConnection(inputConnection),
                     sessionId = sessionId,
                     value = value,
-                    recordUndo = currentSuffix == ScanSuffix.NONE && canTrackUndo(currentInputEditorInfo),
+                    recordUndo = canTrackUndo(currentInputEditorInfo),
                 )
             } catch (error: RuntimeException) {
                 Log.w(TAG, "Input field rejected barcode insertion (${error.javaClass.simpleName})")
@@ -1325,6 +1343,7 @@ class BarcodeInputService : InputMethodService() {
     }
 
     private fun switchKeyboard() {
+        stopBackspaceRepeat()
         inputEditor.clearUndo()
         refreshUndoButton()
         try {
@@ -1339,7 +1358,65 @@ class BarcodeInputService : InputMethodService() {
         }
     }
 
+    private fun installBackspaceRepeat(button: Button) {
+        button.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val connection = currentInputConnection ?: return@setOnTouchListener false
+                    val sessionId = currentSessionId
+                    view.isPressed = true
+                    backspaceRepeat.press {
+                        if (helpVisible || !isInputViewShown || currentSessionId != sessionId ||
+                            currentInputConnection !== connection
+                        ) false else performBackspace(connection, sessionId)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val inside = event.x >= 0f && event.y >= 0f && event.x < view.width && event.y < view.height
+                    if (!inside) {
+                        view.isPressed = false
+                        stopBackspaceRepeat()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    view.isPressed = false
+                    backspaceRepeat.stop()
+                    suppressBackspaceClick = true
+                    view.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_OUTSIDE -> {
+                    view.isPressed = false
+                    stopBackspaceRepeat()
+                    true
+                }
+                else -> true
+            }
+        }
+    }
+
+    private fun performBackspace(connection: InputConnection, sessionId: Long): Boolean {
+        if (helpVisible || !isInputViewShown || currentSessionId != sessionId || currentInputConnection !== connection) {
+            return false
+        }
+        return try {
+            inputEditor.backspace(AndroidEditorConnection(connection)).also {
+                if (!it) setStatus(R.string.editing_unavailable)
+            }
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "Input field rejected Backspace (${error.javaClass.simpleName})")
+            false
+        }
+    }
+
+    private fun stopBackspaceRepeat() {
+        backspaceRepeat.stop()
+    }
+
     private fun requestNextField() {
+        stopBackspaceRepeat()
         val editorInfo = currentInputEditorInfo
         if (EditorCommandPolicy.nextField(editorInfo) == NextFieldCommand.UNSUPPORTED) return
         editCurrentField(clearUndo = false) { connection, currentInfo ->

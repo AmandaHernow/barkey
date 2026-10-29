@@ -32,17 +32,15 @@ class InputConnectionEditorTest {
         assertFalse(editor.canUndo(connection, 3L))
     }
 
-    @Test fun explicitlyInsertedMultilineNewlineCanBeUndone() {
+    @Test fun explicitlyInsertedMultilineNewlineDoesNotCreateUndo() {
         val connection = FakeEditorConnection("ab", cursor = 1)
         val info = EditorInfo().apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             imeOptions = EditorInfo.IME_ACTION_UNSPECIFIED
         }
-        assertTrue(editor.enter(connection, info, sessionId = 8L, recordUndo = true))
+        assertTrue(editor.enter(connection, info))
         assertEquals("a\nb", connection.value())
-        assertTrue(editor.undo(connection, 8L))
-        assertEquals("ab", connection.value())
-        assertEquals(1, connection.cursor())
+        assertFalse(editor.canUndo(connection, 8L))
     }
 
     @Test fun undoEligibilityRechecksContextAndSelectionCallback() {
@@ -67,6 +65,16 @@ class InputConnectionEditorTest {
         val connection = FakeEditorConnection()
         assertTrue(editor.backspace(connection))
         assertEquals("", connection.value())
+    }
+
+    @Test fun backspaceDeletesSelectionAndWholeUnicodeCodePoint() {
+        val selected = FakeEditorConnection("abcdef", selectionStart = 2, selectionEnd = 4)
+        assertTrue(editor.backspace(selected))
+        assertEquals("abef", selected.value())
+
+        val unicode = FakeEditorConnection("A📦")
+        assertTrue(editor.backspace(unicode))
+        assertEquals("A", unicode.value())
     }
 
     @Test fun insertionWithTextOnBothSidesIsUndoableOnlyAtOriginalCursor() {
@@ -96,6 +104,54 @@ class InputConnectionEditorTest {
         val connection = nullReturningInputConnection()
         assertNull(AndroidEditorConnection(connection, 31).cursorSnapshot(16, 16))
         assertNull(AndroidEditorConnection(connection, 30).cursorSnapshot(16, 16))
+    }
+
+    @Test fun api31SurroundingTextFallsBackToBoundedBeforeAndAfterQueries() {
+        val connection = beforeAfterOnlyInputConnection("leftCODE", "-right")
+        val snapshot = AndroidEditorConnection(connection, 31).cursorSnapshot(16, 16)
+        assertEquals("leftCODE", snapshot?.textBeforeCursor)
+        assertEquals("-right", snapshot?.textAfterCursor)
+        assertNull(snapshot?.absoluteCursorPosition)
+    }
+
+    @Test fun unsupportedOrThrowingSnapshotMethodsStillUseAvailableFallbacks() {
+        val connection = beforeAfterOnlyInputConnection("before", "after", throwSnapshotQueries = true)
+        val snapshot = AndroidEditorConnection(connection, 31).cursorSnapshot(16, 16)
+        assertEquals("before", snapshot?.textBeforeCursor)
+        assertEquals("after", snapshot?.textAfterCursor)
+    }
+
+    @Test fun scanUndoWorksWithOnlyBeforeAndAfterCursorFallback() {
+        val connection = beforeAfterEditorConnection("left-right", cursor = 4)
+        val editorConnection = AndroidEditorConnection(connection, 31)
+        assertTrue(editor.commitScan(editorConnection, 7L, "123456789", true))
+        assertTrue(editor.canUndo(editorConnection, 7L))
+        assertTrue(editor.undo(editorConnection, 7L))
+        assertEquals("left-right", connection.toString())
+    }
+
+    @Test fun temporarilyUnavailableUndoSnapshotDoesNotDiscardRecord() {
+        val connection = FakeEditorConnection()
+        assertTrue(editor.commitScan(connection, 1L, "123456789", true))
+        connection.supportsSnapshot = false
+        assertFalse(editor.canUndo(connection, 1L))
+        assertEquals("123456789", connection.value())
+        connection.supportsSnapshot = true
+        assertTrue(editor.canUndo(connection, 1L))
+        assertTrue(editor.undo(connection, 1L))
+        assertEquals("", connection.value())
+    }
+
+    @Test fun delayedAndDuplicateSelectionCallbacksAreCheckedAgainstLiveEditor() {
+        val connection = FakeEditorConnection("before-after", cursor = 6)
+        assertTrue(editor.commitScan(connection, 1L, "123456789", true))
+        editor.onSelectionChanged(connection, 1L, 0, 0)
+        editor.onSelectionChanged(connection, 1L, connection.cursor(), connection.cursor())
+        assertTrue(editor.canUndo(connection, 1L))
+        connection.setCursor(2)
+        editor.onSelectionChanged(connection, 1L, 2, 2)
+        assertFalse(editor.canUndo(connection, 1L))
+        assertEquals("before123456789-after", connection.value())
     }
 
     @Test fun changedCursorOrSurroundingTextRejectsUndo() {
@@ -276,6 +332,77 @@ class InputConnectionEditorTest {
             }
         }
     } as InputConnection
+
+    private fun beforeAfterOnlyInputConnection(
+        before: String,
+        after: String,
+        throwSnapshotQueries: Boolean = false,
+    ): InputConnection = Proxy.newProxyInstance(
+        InputConnection::class.java.classLoader,
+        arrayOf(InputConnection::class.java),
+    ) { _, method, _ ->
+        when (method.name) {
+            "getSurroundingText", "getExtractedText" -> if (throwSnapshotQueries) {
+                throw IllegalStateException("snapshot unavailable")
+            } else null
+            "getSelectedText" -> null
+            "getTextBeforeCursor" -> before
+            "getTextAfterCursor" -> after
+            "toString" -> "BeforeAfterInputConnection"
+            "hashCode" -> 2
+            "equals" -> false
+            else -> when (method.returnType) {
+                Boolean::class.javaPrimitiveType -> false
+                Int::class.javaPrimitiveType -> 0
+                Long::class.javaPrimitiveType -> 0L
+                else -> null
+            }
+        }
+    } as InputConnection
+
+    private fun beforeAfterEditorConnection(initial: String, cursor: Int): InputConnection {
+        val content = StringBuilder(initial)
+        var position = cursor
+        return Proxy.newProxyInstance(
+            InputConnection::class.java.classLoader,
+            arrayOf(InputConnection::class.java),
+        ) { proxy, method, args ->
+            when (method.name) {
+                "getSurroundingText", "getExtractedText", "getSelectedText" -> null
+                "getTextBeforeCursor" -> content.substring((position - (args!![0] as Int)).coerceAtLeast(0), position)
+                "getTextAfterCursor" -> content.substring(position, (position + (args!![0] as Int)).coerceAtMost(content.length))
+                "finishComposingText" -> true
+                "commitText" -> {
+                    val value = args!![0].toString()
+                    content.insert(position, value)
+                    position += value.length
+                    true
+                }
+                "deleteSurroundingTextInCodePoints" -> {
+                    val beforeCount = args!![0] as Int
+                    val start = content.offsetByCodePoints(position, -beforeCount)
+                    content.delete(start, position)
+                    position = start
+                    true
+                }
+                "deleteSurroundingText" -> {
+                    val start = position - (args!![0] as Int)
+                    content.delete(start, position)
+                    position = start
+                    true
+                }
+                "toString" -> content.toString()
+                "hashCode" -> System.identityHashCode(proxy)
+                "equals" -> proxy === args?.get(0)
+                else -> when (method.returnType) {
+                    Boolean::class.javaPrimitiveType -> false
+                    Int::class.javaPrimitiveType -> 0
+                    Long::class.javaPrimitiveType -> 0L
+                    else -> null
+                }
+            }
+        } as InputConnection
+    }
 
     private class FakeEditorConnection(
         initialText: String = "",

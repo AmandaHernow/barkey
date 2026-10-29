@@ -21,15 +21,12 @@ internal class AndroidEditorConnection(
 
     override fun cursorSnapshot(beforeLength: Int, afterLength: Int): EditorCursorSnapshot? {
         if (beforeLength < 0 || afterLength < 0) return null
-        return try {
-            if (apiLevel >= Build.VERSION_CODES.S) {
-                surroundingTextSnapshot(beforeLength, afterLength)
-            } else {
-                extractedTextSnapshot(beforeLength, afterLength)
-            }
-        } catch (_: RuntimeException) {
-            null
-        }
+        val surrounding = if (apiLevel >= Build.VERSION_CODES.S) {
+            attemptSnapshot { surroundingTextSnapshot(beforeLength, afterLength) }
+        } else null
+        return surrounding
+            ?: attemptSnapshot { extractedTextSnapshot(beforeLength, afterLength) }
+            ?: attemptSnapshot { beforeAfterSnapshot(beforeLength, afterLength) }
     }
 
     override fun textBeforeCursor(length: Int): String? = try {
@@ -94,10 +91,7 @@ internal class AndroidEditorConnection(
         // Older editors may return the whole field despite the extraction hint. Bound what we
         // inspect; a large or partial response still provides no trustworthy Undo context.
         if (text.length > MAX_LEGACY_CONTEXT_CHARS || extracted.partialStartOffset != -1 ||
-            extracted.startOffset != 0
-        ) {
-            return EditorCursorSnapshot(null, null, start, end, absoluteCursor)
-        }
+            extracted.startOffset != 0) return null
         return EditorCursorSnapshot(
             textBeforeCursor = text.subSequence((start - beforeLength).coerceAtLeast(0), start).toString(),
             textAfterCursor = text.subSequence(end, (end + afterLength).coerceAtMost(text.length)).toString(),
@@ -105,6 +99,23 @@ internal class AndroidEditorConnection(
             selectionEnd = end,
             absoluteCursorPosition = absoluteCursor,
         )
+    }
+
+    private fun beforeAfterSnapshot(beforeLength: Int, afterLength: Int): EditorCursorSnapshot? {
+        val before = inputConnection.getTextBeforeCursor(beforeLength, 0)?.toString() ?: return null
+        val after = inputConnection.getTextAfterCursor(afterLength, 0)?.toString() ?: return null
+        if (before.length > beforeLength || after.length > afterLength) return null
+        val selected = inputConnection.getSelectedText(0)?.toString()
+        if (!selected.isNullOrEmpty()) {
+            return EditorCursorSnapshot(null, null, 0, selected.length, null)
+        }
+        return EditorCursorSnapshot(before, after, 0, 0, null)
+    }
+
+    private inline fun attemptSnapshot(query: () -> EditorCursorSnapshot?): EditorCursorSnapshot? = try {
+        query()
+    } catch (_: RuntimeException) {
+        null
     }
 
     private companion object {
