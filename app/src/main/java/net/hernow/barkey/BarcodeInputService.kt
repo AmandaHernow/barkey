@@ -831,7 +831,7 @@ class BarcodeInputService : InputMethodService() {
     private fun updateResizeGripBackground(view: View) {
         view.background = GradientDrawable().apply {
             cornerRadius = dp(2).toFloat()
-            setColor(ContextCompat.getColor(this, R.color.keyboard_text_secondary))
+            setColor(ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_text_secondary))
             alpha = 100
         }
     }
