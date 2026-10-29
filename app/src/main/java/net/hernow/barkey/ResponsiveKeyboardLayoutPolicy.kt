@@ -5,6 +5,16 @@ import kotlin.math.floor
 /** Pure sizing decisions for the docked keyboard's measured window content. */
 internal object ResponsiveKeyboardLayoutPolicy {
     data class HeightBounds(val minimumPx: Int, val maximumPx: Int)
+    data class VerticalBounds(val topPx: Int, val bottomPx: Int)
+
+    fun imeAvailableHeight(displayHeightPx: Int, topInsetPx: Int): Int =
+        (displayHeightPx - topInsetPx).coerceAtLeast(1)
+
+    fun minimumKeyboardHeight(fixedContentHeightPx: Int, minimumPreviewHeightPx: Int): Int =
+        (fixedContentHeightPx + minimumPreviewHeightPx).coerceAtLeast(1)
+
+    fun keyboardVerticalBounds(displayBottomPx: Int, keyboardHeightPx: Int): VerticalBounds =
+        VerticalBounds(displayBottomPx - keyboardHeightPx, displayBottomPx)
 
     fun heightBounds(
         usableDisplayHeightPx: Int,
@@ -14,7 +24,7 @@ internal object ResponsiveKeyboardLayoutPolicy {
         maximumFraction: Float = 0.75f,
     ): HeightBounds {
         val usable = usableDisplayHeightPx.coerceAtLeast(1)
-        val minContent = (measuredFixedContentHeightPx + minimumPreviewHeightPx).coerceAtLeast(1)
+        val minContent = minimumKeyboardHeight(measuredFixedContentHeightPx, minimumPreviewHeightPx)
         val maximum = minOf(
             (usable * maximumFraction.coerceIn(0f, 1f)).toInt().coerceAtLeast(1),
             (usable - leaveApplicationVisiblePx).coerceAtLeast(1),
@@ -61,11 +71,8 @@ internal object ResponsiveKeyboardLayoutPolicy {
     fun constrainedPreviewHeight(viewportHeightPx: Int, fixedContentHeightPx: Int, preferredMinPx: Int): Int =
         (viewportHeightPx - fixedContentHeightPx).coerceAtLeast(0).coerceAtMost(preferredMinPx)
 
-    fun shouldShowDeveloperSignature(
-        viewportHeightPx: Int,
-        requiredHeightWithoutSignaturePx: Int,
-        signatureHeightPx: Int,
-    ): Boolean = viewportHeightPx >= requiredHeightWithoutSignaturePx + signatureHeightPx
+    fun manuallyResizedPreviewHeight(viewportHeightPx: Int, fixedContentHeightPx: Int): Int =
+        (viewportHeightPx - fixedContentHeightPx).coerceAtLeast(0)
 
     private const val BUTTON_HORIZONTAL_MARGINS_DP = 4
 }
@@ -93,10 +100,17 @@ internal class KeyboardHeightState {
         return requested
     }
 
-    fun resize(dragDistanceYpx: Int, bounds: ResponsiveKeyboardLayoutPolicy.HeightBounds): Int {
-        val current = height(bounds)
-        val resized = ResponsiveKeyboardLayoutPolicy.resizedHeight(current, dragDistanceYpx, bounds)
-        if (resized != current) manuallyResized = true
+    fun resizeFromDrag(
+        dragStartHeightPx: Int,
+        totalDragDistanceYpx: Int,
+        bounds: ResponsiveKeyboardLayoutPolicy.HeightBounds,
+    ): Int {
+        val resized = ResponsiveKeyboardLayoutPolicy.resizedHeight(
+            dragStartHeightPx,
+            totalDragDistanceYpx,
+            bounds,
+        )
+        if (resized != dragStartHeightPx) manuallyResized = true
         selectedHeightPx = resized
         return resized
     }

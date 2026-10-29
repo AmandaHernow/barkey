@@ -11,11 +11,10 @@ internal sealed class EnterCommand {
 
 internal enum class NextFieldCommand {
     PERFORM_EDITOR_ACTION,
-    SEND_TAB_KEY,
     UNSUPPORTED,
 }
 
-/** Makes action-versus-key fallback decisions once, so a failed action is never retried twice. */
+/** Selects an explicitly advertised navigation action or a harmless no-op. */
 internal object EditorCommandPolicy {
     fun enter(imeOptions: Int, inputType: Int): EnterCommand {
         val action = imeOptions and EditorInfo.IME_MASK_ACTION
@@ -26,13 +25,13 @@ internal object EditorCommandPolicy {
         return if (isMultilineText(inputType)) EnterCommand.InsertNewline else EnterCommand.SendEnterKey
     }
 
-    fun nextField(imeOptions: Int, inputType: Int): NextFieldCommand {
-        val action = imeOptions and EditorInfo.IME_MASK_ACTION
+    fun nextField(editorInfo: EditorInfo?): NextFieldCommand {
+        if (editorInfo == null) return NextFieldCommand.UNSUPPORTED
+        val action = editorInfo.imeOptions and EditorInfo.IME_MASK_ACTION
         val advertisesNext = action == EditorInfo.IME_ACTION_NEXT ||
-            (imeOptions and EditorInfo.IME_FLAG_NAVIGATE_NEXT) != 0
-        if (advertisesNext) return NextFieldCommand.PERFORM_EDITOR_ACTION
-        return if (isMultilineText(inputType)) NextFieldCommand.UNSUPPORTED
-        else NextFieldCommand.SEND_TAB_KEY
+            (editorInfo.imeOptions and EditorInfo.IME_FLAG_NAVIGATE_NEXT) != 0
+        return if (advertisesNext) NextFieldCommand.PERFORM_EDITOR_ACTION
+        else NextFieldCommand.UNSUPPORTED
     }
 
     private fun isMultilineText(inputType: Int): Boolean =

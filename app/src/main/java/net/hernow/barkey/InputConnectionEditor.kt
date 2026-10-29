@@ -168,11 +168,8 @@ internal class InputConnectionEditor {
     }
 
     fun nextField(connection: EditorConnection, editorInfo: EditorInfo?): Boolean {
-        val imeOptions = editorInfo?.imeOptions ?: 0
-        val inputType = editorInfo?.inputType ?: 0
-        return when (EditorCommandPolicy.nextField(imeOptions, inputType)) {
+        return when (EditorCommandPolicy.nextField(editorInfo)) {
             NextFieldCommand.PERFORM_EDITOR_ACTION -> connection.performEditorAction(EditorInfo.IME_ACTION_NEXT)
-            NextFieldCommand.SEND_TAB_KEY -> sendKey(connection, KeyEvent.KEYCODE_TAB)
             NextFieldCommand.UNSUPPORTED -> false
         }
     }

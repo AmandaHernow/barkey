@@ -1,7 +1,6 @@
 package net.hernow.barkey
 
 import android.text.InputType
-import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import java.lang.reflect.Proxy
@@ -167,7 +166,7 @@ class InputConnectionEditorTest {
         assertTrue(connection.keyEvents.isEmpty())
     }
 
-    @Test fun commandPolicyCoversMultilineAndTabFallback() {
+    @Test fun commandPolicyAllowsOnlyExplicitNextNavigation() {
         val multiline = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         assertEquals(EnterCommand.InsertNewline, EditorCommandPolicy.enter(EditorInfo.IME_ACTION_UNSPECIFIED, multiline))
         assertEquals(EnterCommand.InsertNewline, EditorCommandPolicy.enter(
@@ -182,26 +181,46 @@ class InputConnectionEditorTest {
             EditorInfo.IME_ACTION_UNSPECIFIED,
             InputType.TYPE_CLASS_NUMBER,
         ))
-        assertEquals(NextFieldCommand.SEND_TAB_KEY, EditorCommandPolicy.nextField(0, InputType.TYPE_CLASS_TEXT))
-        assertEquals(NextFieldCommand.UNSUPPORTED, EditorCommandPolicy.nextField(0, multiline))
+        assertEquals(NextFieldCommand.UNSUPPORTED, EditorCommandPolicy.nextField(null))
+        assertEquals(NextFieldCommand.UNSUPPORTED, EditorCommandPolicy.nextField(EditorInfo().apply {
+            inputType = InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_UNSPECIFIED
+        }))
         assertEquals(NextFieldCommand.PERFORM_EDITOR_ACTION,
-            EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_NEXT, multiline))
-        assertEquals(NextFieldCommand.SEND_TAB_KEY,
-            EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_DONE, InputType.TYPE_CLASS_TEXT))
-        assertEquals(NextFieldCommand.SEND_TAB_KEY,
-            EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_UNSPECIFIED, InputType.TYPE_CLASS_TEXT))
+            EditorCommandPolicy.nextField(EditorInfo().apply {
+                inputType = multiline
+                imeOptions = EditorInfo.IME_ACTION_NEXT
+            }))
+        assertEquals(NextFieldCommand.PERFORM_EDITOR_ACTION,
+            EditorCommandPolicy.nextField(EditorInfo().apply {
+                inputType = multiline
+                imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NAVIGATE_NEXT
+            }))
+        listOf(
+            EditorInfo.IME_ACTION_DONE,
+            EditorInfo.IME_ACTION_GO,
+            EditorInfo.IME_ACTION_SEARCH,
+            EditorInfo.IME_ACTION_SEND,
+            EditorInfo.IME_ACTION_NONE,
+            EditorInfo.IME_ACTION_UNSPECIFIED,
+        ).forEach { action ->
+            assertEquals(NextFieldCommand.UNSUPPORTED,
+                EditorCommandPolicy.nextField(EditorInfo().apply { imeOptions = action }))
+        }
         assertEquals(NextFieldCommand.UNSUPPORTED,
-            EditorCommandPolicy.nextField(EditorInfo.IME_ACTION_DONE, multiline))
+            EditorCommandPolicy.nextField(EditorInfo().apply {
+                inputType = multiline
+                imeOptions = EditorInfo.IME_ACTION_DONE
+            }))
     }
 
-    @Test fun enterAndTabFallbacksNeverCommitLiteralTab() {
-        val singleLine = FakeEditorConnection()
-        assertTrue(editor.nextField(singleLine, EditorInfo().apply { inputType = InputType.TYPE_CLASS_TEXT }))
-        assertEquals(listOf(
-            KeyEvent.KEYCODE_TAB to KeyEvent.ACTION_DOWN,
-            KeyEvent.KEYCODE_TAB to KeyEvent.ACTION_UP,
-        ), singleLine.keyEvents)
-        assertTrue(singleLine.committedText.isEmpty())
+    @Test fun tabUsesOnlyTheAdvertisedNextActionAndNeverInjectsAKey() {
+        val next = FakeEditorConnection()
+        val nextInfo = EditorInfo().apply { imeOptions = EditorInfo.IME_ACTION_NEXT }
+        assertTrue(editor.nextField(next, nextInfo))
+        assertEquals(listOf(EditorInfo.IME_ACTION_NEXT), next.actions)
+        assertTrue(next.keyEvents.isEmpty())
+        assertTrue(next.committedText.isEmpty())
 
         val multiline = FakeEditorConnection()
         val multilineInfo = EditorInfo().apply {
@@ -213,21 +232,28 @@ class InputConnectionEditorTest {
         assertTrue(multiline.keyEvents.isEmpty())
     }
 
-    @Test fun tabWithDoneOrUnspecifiedNeverPerformsSubmitOrEnterAction() {
-        listOf(EditorInfo.IME_ACTION_DONE, EditorInfo.IME_ACTION_UNSPECIFIED).forEach { action ->
+    @Test fun unsupportedTabIsHarmlessAndPreservesUndo() {
+        listOf(
+            EditorInfo.IME_ACTION_DONE,
+            EditorInfo.IME_ACTION_GO,
+            EditorInfo.IME_ACTION_SEARCH,
+            EditorInfo.IME_ACTION_SEND,
+            EditorInfo.IME_ACTION_NONE,
+            EditorInfo.IME_ACTION_UNSPECIFIED,
+        ).forEach { action ->
             val connection = FakeEditorConnection()
+            assertTrue(editor.commitScan(connection, 1L, "SAFE", recordUndo = true))
             val info = EditorInfo().apply {
                 inputType = InputType.TYPE_CLASS_TEXT
                 imeOptions = action
             }
-            assertTrue(editor.nextField(connection, info))
+            assertFalse(editor.nextField(connection, info))
             assertTrue(connection.actions.isEmpty())
-            assertEquals(listOf(
-                KeyEvent.KEYCODE_TAB to KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_TAB to KeyEvent.ACTION_UP,
-            ), connection.keyEvents)
+            assertTrue(connection.keyEvents.isEmpty())
             assertTrue(connection.committedText.isEmpty())
+            assertTrue(editor.canUndo(connection, 1L))
         }
+        assertFalse(editor.nextField(FakeEditorConnection(), null))
     }
 
     private fun nullReturningInputConnection(): InputConnection = Proxy.newProxyInstance(
