@@ -14,8 +14,9 @@ internal class BarcodeFrameAnalyzer(
     private val timing: DecodeTimingRecorder,
     private val previewEnabled: () -> Boolean = { false },
     private val focusEnabled: () -> Boolean = { false },
-    private val scanCrop: (ImageProxy) -> Rect? = { null },
+    private val scanCrop: (ImageProxy, Long) -> Rect? = { _, _ -> null },
     private val settingsGeneration: () -> Long = { 0L },
+    private val shouldDecode: () -> Boolean = { true },
     private val onDecoded: (sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long, values: List<String>) -> Unit,
     private val onFailure: (sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long) -> Unit,
 ) : ImageAnalysis.Analyzer {
@@ -26,14 +27,19 @@ internal class BarcodeFrameAnalyzer(
         val settings = settingsGeneration()
         val candidates = previewEnabled()
         val focused = focusEnabled()
-        val crop = scanCrop(image)
+        val decodeAllowed = shouldDecode()
+        val crop = if (decodeAllowed && focused) scanCrop(image, settings) else null
         val outcome = timing.measure {
             FrameDecodeRunner.run(image) {
-                when (FrameDecodePolicy.request(candidates, focused, crop != null)) {
-                    FrameDecodeRequest.FOCUS_UNAVAILABLE -> DecodeOutcome.NotFound
-                    FrameDecodeRequest.MULTIPLE_CANDIDATES -> decoder.decodeCandidates(it, snapshot.mode, crop)
-                    FrameDecodeRequest.FOCUSED_SINGLE -> decoder.decodeFocused(it, snapshot.mode, crop!!)
-                    FrameDecodeRequest.NORMAL -> decoder.decode(it, snapshot.mode)
+                if (!decodeAllowed) {
+                    DecodeOutcome.NotFound
+                } else {
+                    when (FrameDecodePolicy.request(candidates, focused, crop != null)) {
+                        FrameDecodeRequest.FOCUS_UNAVAILABLE -> DecodeOutcome.NotFound
+                        FrameDecodeRequest.MULTIPLE_CANDIDATES -> decoder.decodeCandidates(it, snapshot.mode, crop)
+                        FrameDecodeRequest.FOCUSED_SINGLE -> decoder.decodeFocused(it, snapshot.mode, crop!!)
+                        FrameDecodeRequest.NORMAL -> decoder.decode(it, snapshot.mode)
+                    }
                 }
             }
         }

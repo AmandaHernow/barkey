@@ -94,6 +94,7 @@ class BarcodeInputService : InputMethodService() {
     private val singleScanGate = SingleScanGate()
     private var activeEditorField: EditorFieldKey? = null
     private val settingsCallbackGeneration = CallbackGeneration()
+    private val focusRegionState = FocusRegionState(settingsCallbackGeneration, previewCandidateState)
     private val imageProxyTransformFactory = ImageProxyTransformFactory().apply {
         setUsingCropRect(true)
         setUsingRotationDegrees(false)
@@ -123,7 +124,6 @@ class BarcodeInputService : InputMethodService() {
     @Volatile private var focusEnabled = false
     @Volatile private var singleScanEnabled = false
     private val extendedGeneration: Long get() = settingsCallbackGeneration.current()
-    @Volatile private var focusSquare = FocusRegionGeometry.RectF(0f, 0f, 0f, 0f)
     @Volatile private var previewOutputTransform: OutputTransform? = null
     @Volatile private var previewOutputTransformSize: Pair<Int, Int>? = null
     private var transformRefreshRunnable: Runnable? = null
@@ -428,7 +428,9 @@ class BarcodeInputService : InputMethodService() {
                     lp.topMargin = clamped.top.toInt()
                     regionDragX = event.rawX; regionDragY = event.rawY
                     view.layoutParams = lp
-                    view.post { updateFocusSquare(view, preview) }
+                    // Publish the selected bounds and invalidate old frames before another
+                    // analyzer callback can be accepted. The view's eventual layout pass is a no-op.
+                    updateFocusSquare(view, preview, lp.leftMargin, lp.topMargin, view.width, view.height)
                     true
                 }
                 MotionEvent.ACTION_UP -> {
@@ -444,11 +446,11 @@ class BarcodeInputService : InputMethodService() {
         }
         frame.addView(focusRegion, FrameLayout.LayoutParams(dp(160), dp(160), Gravity.CENTER))
         preview.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            layoutFocusSquare(focusRegion, preview)
+            val regionChanged = layoutFocusSquare(focusRegion, preview)
             previewOutputTransform = null
             previewOutputTransformSize = null
             preview.post { refreshPreviewOutputTransform(preview, cameraRequestId) }
-            if (focusEnabled) {
+            if (focusEnabled && !regionChanged) {
                 settingsCallbackGeneration.advance()
                 clearPendingResults()
                 clearPreviewCandidates()
@@ -1255,35 +1257,53 @@ class BarcodeInputService : InputMethodService() {
         render(singleScanToggleButton, true, singleScanEnabled)
     }
 
-    private fun updateFocusSquare(view: View, preview: PreviewView?) {
-        val p = preview ?: return
-        if (p.width <= 0 || p.height <= 0) return
-        focusSquare = FocusRegionGeometry.RectF(view.left / p.width.toFloat(), view.top / p.height.toFloat(),
-            (view.left + view.width) / p.width.toFloat(), (view.top + view.height) / p.height.toFloat())
+    private fun updateFocusSquare(
+        view: View,
+        preview: PreviewView?,
+        left: Int = view.left,
+        top: Int = view.top,
+        width: Int = view.width,
+        height: Int = view.height,
+    ): Boolean {
+        val p = preview ?: return false
+        if (p.width <= 0 || p.height <= 0 || width <= 0 || height <= 0) return false
+        val next = FocusRegionGeometry.RectF(
+            left / p.width.toFloat(), top / p.height.toFloat(),
+            (left + width) / p.width.toFloat(), (top + height) / p.height.toFloat(),
+        )
+        val changed = focusRegionState.update(next, focusEnabled)
+        if (changed && focusEnabled) {
+            clearPendingResults()
+            // FocusRegionState already cleared the candidate values and invalidated selection tokens.
+            clearPreviewCandidateViews()
+        }
+        return changed
     }
 
-    private fun layoutFocusSquare(view: View, preview: PreviewView) {
-        if (preview.width <= 0 || preview.height <= 0) return
+    private fun layoutFocusSquare(view: View, preview: PreviewView): Boolean {
+        if (preview.width <= 0 || preview.height <= 0) return false
         val side = minOf(dp(160), preview.width, preview.height).coerceAtLeast(1)
-        val lp = view.layoutParams as? FrameLayout.LayoutParams ?: return
+        val lp = view.layoutParams as? FrameLayout.LayoutParams ?: return false
         lp.gravity = Gravity.TOP or Gravity.START
         lp.width = side
         lp.height = side
-        val hasStoredPosition = focusSquare.right > focusSquare.left && focusSquare.bottom > focusSquare.top
-        val left = if (hasStoredPosition) (focusSquare.left * preview.width).toInt() else (preview.width - side) / 2
-        val top = if (hasStoredPosition) (focusSquare.top * preview.height).toInt() else (preview.height - side) / 2
+        val stored = focusRegionState.snapshot().region
+        val hasStoredPosition = stored.right > stored.left && stored.bottom > stored.top
+        val left = if (hasStoredPosition) (stored.left * preview.width).toInt() else (preview.width - side) / 2
+        val top = if (hasStoredPosition) (stored.top * preview.height).toInt() else (preview.height - side) / 2
         lp.leftMargin = left.coerceIn(0, (preview.width - side).coerceAtLeast(0))
         lp.topMargin = top.coerceIn(0, (preview.height - side).coerceAtLeast(0))
         view.layoutParams = lp
-        view.post { updateFocusSquare(view, preview) }
+        return updateFocusSquare(view, preview, lp.leftMargin, lp.topMargin, side, side)
     }
 
-    private fun mappedScanCrop(image: androidx.camera.core.ImageProxy): Rect? {
-        if (!focusEnabled) return null
+    private fun mappedScanCrop(image: androidx.camera.core.ImageProxy, expectedSettingsGeneration: Long): Rect? {
+        if (!focusEnabled || !settingsCallbackGeneration.accepts(expectedSettingsGeneration)) return null
+        val regionSnapshot = focusRegionState.snapshotFor(expectedSettingsGeneration) ?: return null
         val preview = previewView ?: return null
         val previewTransform = previewOutputTransform ?: return null
         if (previewOutputTransformSize != (preview.width to preview.height)) return null
-        val square = focusSquare
+        val square = regionSnapshot.region
         if (preview.width <= 0 || preview.height <= 0 || square.right <= square.left || square.bottom <= square.top) return null
         val mapped = android.graphics.RectF(
             square.left * preview.width, square.top * preview.height,
@@ -1308,6 +1328,9 @@ class BarcodeInputService : InputMethodService() {
                 cameraXRect.left, cameraXRect.top, cameraXRect.right, cameraXRect.bottom,
             )
         } ?: return null
+        if (!focusEnabled || !settingsCallbackGeneration.accepts(expectedSettingsGeneration) ||
+            focusRegionState.snapshotFor(expectedSettingsGeneration)?.region != regionSnapshot.region
+        ) return null
         return Rect(mappedCrop.left, mappedCrop.top, mappedCrop.right, mappedCrop.bottom)
     }
 
@@ -1389,6 +1412,9 @@ class BarcodeInputService : InputMethodService() {
                             focusEnabled = { focusEnabled },
                             scanCrop = ::mappedScanCrop,
                             settingsGeneration = { extendedGeneration },
+                            shouldDecode = {
+                                SingleScanDecodePolicy.shouldDecode(singleScanEnabled, singleScanGate.isConsumed())
+                            },
                             onDecoded = ::onDecoded,
                             onFailure = ::onDecoderFailure,
                         ),
@@ -1600,6 +1626,10 @@ class BarcodeInputService : InputMethodService() {
 
     private fun clearPreviewCandidates() {
         previewCandidateState.clear()
+        clearPreviewCandidateViews()
+    }
+
+    private fun clearPreviewCandidateViews() {
         renderedPreviewValues = emptyList()
         previewCandidateRow?.removeAllViews()
         previewCandidateRow?.visibility = View.GONE

@@ -41,6 +41,37 @@ internal class PreviewCandidateState(
     }
 }
 
+/** Owns the selected Focus region together with the generation used to validate its scan results. */
+internal class FocusRegionState(
+    private val callbacks: CallbackGeneration,
+    private val candidates: PreviewCandidateState,
+    initialRegion: FocusRegionGeometry.RectF = FocusRegionGeometry.RectF(0f, 0f, 0f, 0f),
+) {
+    data class Snapshot(val region: FocusRegionGeometry.RectF, val generation: Long)
+
+    private var region = initialRegion
+
+    @Synchronized
+    fun snapshot(): Snapshot = Snapshot(region, callbacks.current())
+
+    /** Returns false without invalidating anything when layout or a drag leaves the region unchanged. */
+    @Synchronized
+    fun update(next: FocusRegionGeometry.RectF, focusEnabled: Boolean): Boolean {
+        if (region == next) return false
+        region = next
+        if (focusEnabled) {
+            callbacks.advance()
+            candidates.clear()
+        }
+        return true
+    }
+
+    /** A worker must not use a transform paired with a different Focus generation. */
+    @Synchronized
+    fun snapshotFor(expectedGeneration: Long): Snapshot? =
+        Snapshot(region, callbacks.current()).takeIf { it.generation == expectedGeneration }
+}
+
 /** Preview never sends a decoded value directly to the editor while selection is enabled. */
 internal object PreviewDeliveryPolicy {
     fun mayInsertAutomatically(previewEnabled: Boolean): Boolean = !previewEnabled
@@ -171,6 +202,12 @@ internal object FrameDecodePolicy {
         focusEnabled -> FrameDecodeRequest.FOCUSED_SINGLE
         else -> FrameDecodeRequest.NORMAL
     }
+}
+
+/** Camera-worker-safe gate: it reads only the volatile mode and synchronized insertion allowance. */
+internal object SingleScanDecodePolicy {
+    fun shouldDecode(singleScanEnabled: Boolean, allowanceConsumed: Boolean): Boolean =
+        !singleScanEnabled || !allowanceConsumed
 }
 
 /** Invalidates camera results captured before a mode or surface transition. */
