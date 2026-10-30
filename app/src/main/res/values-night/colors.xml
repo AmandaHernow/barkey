@@ -12,6 +12,7 @@
     <color name="keyboard_camera_surface">#111518</color>
     <color name="keyboard_engraving_text">#929BA3</color>
     <color name="keyboard_engraving_shadow">#272D33</color>
+    <color name="setup_controls_accent">#58B8B5</color>
     <color name="torch_overlay_surface">#D91E2227</color>
     <color name="torch_overlay_surface_active">#E03A434C</color>
 </resources>

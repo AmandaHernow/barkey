@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
@@ -21,9 +22,11 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 
 /** Launcher setup guide. Android remains in control of enabling and selecting input methods. */
 class SetupActivity : Activity() {
+    private var controlsExpanded = false
     private var enabledStatus: TextView? = null
     private var selectedStatus: TextView? = null
     private var cameraStatus: TextView? = null
@@ -31,8 +34,14 @@ class SetupActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        controlsExpanded = savedInstanceState?.getBoolean(STATE_CONTROLS_EXPANDED) ?: false
         setContentView(createContent())
         refreshSetupStatus()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(STATE_CONTROLS_EXPANDED, controlsExpanded)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
@@ -109,6 +118,8 @@ class SetupActivity : Activity() {
             buttonAction = ::showKeyboardPicker,
         ), cardLayoutParams())
 
+        page.addView(controlsGuide(), cardLayoutParams())
+
         val links = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -134,6 +145,117 @@ class SetupActivity : Activity() {
         page.addView(links)
         root.addView(centered, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return root
+    }
+
+    private fun controlsGuide(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(12))
+            setBackgroundResource(R.drawable.help_section_background)
+        }
+        val details = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = if (controlsExpanded) View.VISIBLE else View.GONE
+        }
+        val chevron = text("⌄", 26f, bold = true).apply {
+            gravity = Gravity.CENTER
+            setTextColor(color(R.color.setup_controls_accent))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            isFocusable = true
+            minimumHeight = dp(52)
+            contentDescription = controlsGuideDescription()
+            ViewCompat.setStateDescription(
+                this,
+                getString(if (controlsExpanded) R.string.setup_controls_expanded else R.string.setup_controls_collapsed),
+            )
+            setOnClickListener {
+                controlsExpanded = !controlsExpanded
+                details.visibility = if (controlsExpanded) View.VISIBLE else View.GONE
+                chevron.text = if (controlsExpanded) "⌃" else "⌄"
+                contentDescription = controlsGuideDescription()
+                ViewCompat.setStateDescription(
+                    this,
+                    getString(if (controlsExpanded) R.string.setup_controls_expanded else R.string.setup_controls_collapsed),
+                )
+                announceForAccessibility(
+                    getString(if (controlsExpanded) R.string.setup_controls_expanded else R.string.setup_controls_collapsed),
+                )
+            }
+        }
+        val headingCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        headingCopy.addView(text(getString(R.string.setup_controls_title), 18f, bold = true).apply {
+            setTextColor(color(R.color.setup_controls_accent))
+        })
+        headingCopy.addView(text(getString(R.string.setup_controls_subtitle), 13f).apply {
+            setTextColor(color(R.color.keyboard_text_secondary))
+        })
+        heading.addView(headingCopy, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        heading.addView(chevron, LinearLayout.LayoutParams(dp(40), dp(48)))
+        card.addView(heading)
+
+        addGuideGroup(details, R.string.setup_controls_scanning_heading, listOf(
+            R.string.setup_controls_fast,
+            R.string.setup_controls_accurate,
+            R.string.setup_controls_preview,
+            R.string.setup_controls_focus,
+            R.string.setup_controls_single_scan,
+            R.string.setup_controls_torch,
+            R.string.setup_controls_tap_focus,
+        ))
+        addGuideGroup(details, R.string.setup_controls_editing_heading, listOf(
+            R.string.setup_controls_undo,
+            R.string.setup_controls_backspace,
+            R.string.setup_controls_arrows,
+            R.string.setup_controls_space,
+            R.string.setup_controls_tab,
+            R.string.setup_controls_enter,
+        ))
+        addGuideGroup(details, R.string.setup_controls_keyboard_heading, listOf(
+            R.string.setup_controls_switch_keyboard,
+            R.string.setup_controls_hide_keyboard,
+            R.string.setup_controls_resize,
+        ))
+        details.addView(text(getString(R.string.setup_controls_example), 14f).apply {
+            setTextColor(color(R.color.keyboard_text_primary))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(12)
+        })
+        details.addView(text(getString(R.string.setup_controls_help_note), 13f).apply {
+            setTextColor(color(R.color.keyboard_text_secondary))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8)
+        })
+        card.addView(details)
+        return card
+    }
+
+    private fun addGuideGroup(parent: LinearLayout, headingResource: Int, entries: List<Int>) {
+        parent.addView(text(getString(headingResource), 15f, bold = true).apply {
+            setTextColor(color(R.color.setup_controls_accent))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(12)
+            bottomMargin = dp(2)
+        })
+        entries.forEach { resource ->
+            parent.addView(text(getText(resource), 14f), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(6) })
+        }
+    }
+
+    private fun controlsGuideDescription(): String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        getString(R.string.setup_controls_accessibility)
+    } else {
+        getString(
+            R.string.setup_controls_accessibility_legacy,
+            getString(if (controlsExpanded) R.string.setup_controls_expanded else R.string.setup_controls_collapsed),
+        )
     }
 
     private fun stepCard(
@@ -284,7 +406,7 @@ class SetupActivity : Activity() {
         }
     }
 
-    private fun text(value: String, sizeSp: Float, bold: Boolean = false): TextView = TextView(this).apply {
+    private fun text(value: CharSequence, sizeSp: Float, bold: Boolean = false): TextView = TextView(this).apply {
         text = value
         textSize = sizeSp
         setTextColor(color(R.color.keyboard_text_primary))
@@ -295,6 +417,7 @@ class SetupActivity : Activity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private companion object {
+        const val STATE_CONTROLS_EXPANDED = "setup_controls_expanded"
         const val ABOUT_URL = "https://amandahernow.github.io/barkey/about.html"
         const val PRIVACY_URL = "https://amandahernow.github.io/barkey/privacy-policy.html"
         const val GITHUB_URL = "https://github.com/AmandaHernow/barkey"
