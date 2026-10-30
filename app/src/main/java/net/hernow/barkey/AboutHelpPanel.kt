@@ -137,7 +137,6 @@ internal class AboutHelpPanel(
                 R.string.help_torch,
                 R.string.help_preview,
                 R.string.help_focus_region,
-                R.string.help_manual_keyboard,
                 R.string.help_single_scan,
                 R.string.help_extended_combinations,
             ).forEach { addBody(context, section, it) }

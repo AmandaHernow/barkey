@@ -29,9 +29,12 @@ internal class BarcodeFrameAnalyzer(
         val crop = scanCrop(image)
         val outcome = timing.measure {
             FrameDecodeRunner.run(image) {
-                if (focused && crop == null) DecodeOutcome.NotFound
-                else if (candidates || focused) decoder.decodeCandidates(it, snapshot.mode, crop)
-                else decoder.decode(it, snapshot.mode)
+                when (FrameDecodePolicy.request(candidates, focused, crop != null)) {
+                    FrameDecodeRequest.FOCUS_UNAVAILABLE -> DecodeOutcome.NotFound
+                    FrameDecodeRequest.MULTIPLE_CANDIDATES -> decoder.decodeCandidates(it, snapshot.mode, crop)
+                    FrameDecodeRequest.FOCUSED_SINGLE -> decoder.decodeFocused(it, snapshot.mode, crop!!)
+                    FrameDecodeRequest.NORMAL -> decoder.decode(it, snapshot.mode)
+                }
             }
         }
         when (outcome) {

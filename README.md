@@ -48,12 +48,11 @@ Version 1.0 is the first BarKey-branded development version. Project-owner testi
 
 ## Optional extended scanning functions
 
-The `extended-functions` development branch adds four optional controls beneath the scanner preview. They are being developed and have not been included in a public release:
+The `extended-functions` development branch is developing three optional controls beneath the scanner preview. They are not included in a public release:
 
-- **Preview** shows distinct detected values so you can tap the barcode you want, useful when several codes are close together. Automatic insertion pauses while Preview is on.
-- **Focus** adds a movable square that restricts decoding to the selected area, useful for labels with neighbouring codes. It is separate from tapping the preview to request camera autofocus.
-- **Keyboard** replaces the camera with a Swedish manual keyboard for a damaged or missing barcode. Tap **Scanner** to return; this does not switch to Gboard or another Android keyboard.
-- **Single Scan** accepts one successfully inserted barcode per text field and allows scanning again after moving to another field. It also works with a selected Preview suggestion.
+- **Preview** shows distinct detected values so you can choose which barcode to insert, useful when several codes are close together. Automatic insertion pauses while Preview is on.
+- **Focus** adds a movable square that restricts decoding to the selected area, useful for labels with neighbouring codes. It is separate from tapping the preview to request camera autofocus. Focus uses the Java compatibility decoder for cropped frames, so speed and supported formats may differ from ordinary native-first scanning.
+- **Single Scan** accepts one successfully inserted barcode per recognisable text field and allows scanning again after moving to another field. Android does not always provide enough field identity information, particularly in some browser and WebView forms, so this cannot be guaranteed for every app. It also works with a selected Preview suggestion.
 
 Preview and Focus can be combined to narrow the scan area and then choose a detected value. Single Scan can be added to prevent another insertion into that field. Fast and Accurate remain independent scanning modes.
 

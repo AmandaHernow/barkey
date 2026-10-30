@@ -1,18 +1,20 @@
 package net.hernow.barkey
 
-import kotlin.math.max
-import kotlin.math.min
 import java.util.concurrent.atomic.AtomicLong
 
 /** Small in-memory set of currently visible Preview candidates. */
 internal class PreviewCandidateState(
     private val expiryMillis: Long = 1_200L,
+    private val maxCandidates: Int = 8,
 ) {
     private val seenAt = linkedMapOf<String, Long>()
+    private var selectionGeneration = 0L
 
     @Synchronized
     fun update(values: Collection<String>, nowMillis: Long): List<String> {
-        values.filter(String::isNotEmpty).forEach { seenAt[it] = nowMillis }
+        values.asSequence().filter(String::isNotEmpty).distinct().forEach { value ->
+            if (seenAt.containsKey(value) || seenAt.size < maxCandidates.coerceAtLeast(1)) seenAt[value] = nowMillis
+        }
         expire(nowMillis)
         return seenAt.keys.toList()
     }
@@ -24,17 +26,41 @@ internal class PreviewCandidateState(
     }
 
     @Synchronized
-    fun isSelectable(value: String, nowMillis: Long): Boolean {
+    fun selectionToken(): Long = selectionGeneration
+
+    @Synchronized
+    fun isSelectable(value: String, nowMillis: Long, token: Long = selectionGeneration): Boolean {
         expire(nowMillis)
-        return seenAt.containsKey(value)
+        return token == selectionGeneration && seenAt.containsKey(value)
     }
 
     @Synchronized
-    fun clear() = seenAt.clear()
+    fun clear() {
+        seenAt.clear()
+        selectionGeneration += 1
+    }
+}
+
+/** Preview never sends a decoded value directly to the editor while selection is enabled. */
+internal object PreviewDeliveryPolicy {
+    fun mayInsertAutomatically(previewEnabled: Boolean): Boolean = !previewEnabled
+
+    fun maySelect(
+        previewEnabled: Boolean,
+        candidates: PreviewCandidateState,
+        value: String,
+        nowMillis: Long,
+        selectionToken: Long = candidates.selectionToken(),
+    ): Boolean = previewEnabled && candidates.isSelectable(value, nowMillis, selectionToken)
 }
 
 /** A field key deliberately contains no field contents. */
-internal data class EditorFieldKey(val connection: Any, val packageName: String?, val fieldId: Int)
+internal data class EditorFieldKey(val connection: Any, val packageName: String?, val fieldId: Int) {
+    /** Android field IDs are strongest when supplied; connection identity is the fallback for ID 0. */
+    fun identifiesSameField(next: EditorFieldKey): Boolean = packageName == next.packageName &&
+        (if (fieldId > 0 && next.fieldId > 0) fieldId == next.fieldId
+        else fieldId == next.fieldId && connection === next.connection)
+}
 
 /** One accepted insertion per editor identity; input-view recreation does not reset it. */
 internal class SingleScanGate {
@@ -42,14 +68,11 @@ internal class SingleScanGate {
     private var consumed = false
 
     @Synchronized
-    fun moveTo(next: EditorFieldKey) {
-        val sameField = field?.let { previous ->
-            previous.packageName == next.packageName &&
-                (if (previous.fieldId > 0 && next.fieldId > 0) previous.fieldId == next.fieldId
-                else previous.fieldId == next.fieldId && previous.connection === next.connection)
-        } == true
+    fun moveTo(next: EditorFieldKey): Boolean {
+        val sameField = field?.identifiesSameField(next) == true
         if (!sameField) consumed = false
         field = next
+        return !sameField
     }
 
     @Synchronized fun isConsumed(): Boolean = consumed
@@ -61,94 +84,75 @@ internal class SingleScanGate {
     @Synchronized fun reset() { field = null; consumed = false }
 }
 
-/** Maps preview-local coordinates into the unrotated ImageProxy crop using CameraX's FILL_CENTER geometry. */
-internal object ScanRegionGeometry {
+/** Geometry helpers for the draggable Focus square and its production camera crop mapping. */
+internal object FocusRegionGeometry {
     data class RectF(val left: Float, val top: Float, val right: Float, val bottom: Float)
+    data class ImageRect(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+        val isEmpty: Boolean get() = right <= left || bottom <= top
+    }
 
-    fun contains(rect: RectF, x: Float, y: Float): Boolean =
-        x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom
-
-    fun mapPreviewSquare(
-        square: RectF,
-        previewWidth: Int,
-        previewHeight: Int,
-        frameWidth: Int,
-        frameHeight: Int,
-        rotationDegrees: Int,
-        crop: RectF = RectF(0f, 0f, frameWidth.toFloat(), frameHeight.toFloat()),
-    ): RectF? {
-        if (previewWidth <= 0 || previewHeight <= 0 || frameWidth <= 0 || frameHeight <= 0) return null
-        val rotation = ((rotationDegrees % 360) + 360) % 360
-        val cropWidth = if (rotation == 90 || rotation == 270) crop.bottom - crop.top else crop.right - crop.left
-        val cropHeight = if (rotation == 90 || rotation == 270) crop.right - crop.left else crop.bottom - crop.top
-        if (cropWidth <= 0f || cropHeight <= 0f) return null
-        val scale = max(previewWidth / cropWidth, previewHeight / cropHeight) // PreviewView.FILL_CENTER
-        val shownWidth = cropWidth * scale
-        val shownHeight = cropHeight * scale
-        val ox = (previewWidth - shownWidth) / 2f
-        val oy = (previewHeight - shownHeight) / 2f
-        var left = ((square.left - ox) / scale).coerceIn(0f, cropWidth)
-        var right = ((square.right - ox) / scale).coerceIn(0f, cropWidth)
-        var top = ((square.top - oy) / scale).coerceIn(0f, cropHeight)
-        var bottom = ((square.bottom - oy) / scale).coerceIn(0f, cropHeight)
-        if (right <= left || bottom <= top) return null
-        val mapped = when (rotation) {
-            90 -> RectF(crop.left + top, crop.bottom - right, crop.left + bottom, crop.bottom - left)
-            180 -> RectF(crop.right - right, crop.bottom - bottom, crop.right - left, crop.bottom - top)
-            270 -> RectF(crop.right - bottom, crop.top + left, crop.right - top, crop.top + right)
-            else -> RectF(crop.left + left, crop.top + top, crop.left + right, crop.top + bottom)
+    /**
+     * Maps a preview rectangle using CameraX's CoordinateTransform, whose destination is crop-local
+     * when ImageProxyTransformFactory.setUsingCropRect(true). The result is then offset exactly
+     * once into ImageProxy buffer coordinates and clipped to its valid crop rectangle.
+     */
+    fun mapPreviewRectToImageCrop(
+        previewRect: RectF,
+        crop: ImageRect,
+        mapToCropLocal: (RectF) -> Unit,
+    ): ImageRect? {
+        if (crop.isEmpty || !previewRect.isFiniteAndNonEmpty()) return null
+        val mapped = previewRect.copy()
+        try {
+            mapToCropLocal(mapped)
+        } catch (_: RuntimeException) {
+            return null
         }
-        left = mapped.left.coerceIn(crop.left, crop.right)
-        right = mapped.right.coerceIn(crop.left, crop.right)
-        top = mapped.top.coerceIn(crop.top, crop.bottom)
-        bottom = mapped.bottom.coerceIn(crop.top, crop.bottom)
-        return if (right > left && bottom > top) RectF(left, top, right, bottom) else null
+        if (!mapped.isFiniteAndNonEmpty()) return null
+        val cropWidth = (crop.right - crop.left).toFloat()
+        val cropHeight = (crop.bottom - crop.top).toFloat()
+        val left = mapped.left.coerceIn(0f, cropWidth)
+        val top = mapped.top.coerceIn(0f, cropHeight)
+        val right = mapped.right.coerceIn(0f, cropWidth)
+        val bottom = mapped.bottom.coerceIn(0f, cropHeight)
+        if (right <= left || bottom <= top) return null
+        val result = ImageRect(
+            crop.left + kotlin.math.floor(left).toInt(),
+            crop.top + kotlin.math.floor(top).toInt(),
+            crop.left + kotlin.math.ceil(right).toInt(),
+            crop.top + kotlin.math.ceil(bottom).toInt(),
+        )
+        val clipped = ImageRect(
+            result.left.coerceIn(crop.left, crop.right), result.top.coerceIn(crop.top, crop.bottom),
+            result.right.coerceIn(crop.left, crop.right), result.bottom.coerceIn(crop.top, crop.bottom),
+        )
+        return clipped.takeUnless { it.isEmpty }
     }
 
     fun clampSquare(left: Float, top: Float, size: Float, width: Float, height: Float): RectF {
-        val side = min(size, min(width, height)).coerceAtLeast(0f)
-        val x = left.coerceIn(0f, (width - side).coerceAtLeast(0f))
-        val y = top.coerceIn(0f, (height - side).coerceAtLeast(0f))
+        if (!left.isFinite() || !top.isFinite() || !size.isFinite() || !width.isFinite() || !height.isFinite() ||
+            width <= 0f || height <= 0f || size <= 0f
+        ) return RectF(0f, 0f, 0f, 0f)
+        val side = size.coerceAtMost(width).coerceAtMost(height)
+        val x = left.coerceIn(0f, width - side)
+        val y = top.coerceIn(0f, height - side)
         return RectF(x, y, x + side, y + side)
     }
+
+    private fun RectF.isFiniteAndNonEmpty(): Boolean =
+        left.isFinite() && top.isFinite() && right.isFinite() && bottom.isFinite() && right > left && bottom > top
 }
 
-/** Swedish manual keyboard state: shift is one-shot; symbol layout is toggled separately. */
-internal class SwedishKeyboardState {
-    var shifted: Boolean = false
-        private set
-    var symbols: Boolean = false
-        private set
-    private var capsLock = false
+internal enum class FrameDecodeRequest { NORMAL, MULTIPLE_CANDIDATES, FOCUSED_SINGLE, FOCUS_UNAVAILABLE }
 
-    fun toggleShift() { shifted = !shifted }
-    fun toggleSymbols() { symbols = !symbols; shifted = false }
-    fun configure(inputType: Int) {
-        val inputClass = inputType and android.text.InputType.TYPE_MASK_CLASS
-        symbols = inputClass == android.text.InputType.TYPE_CLASS_NUMBER ||
-            inputClass == android.text.InputType.TYPE_CLASS_PHONE
-        capsLock = inputClass == android.text.InputType.TYPE_CLASS_TEXT &&
-            (inputType and android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
-        shifted = capsLock
+/** Keeps multi-result decoding opt-in and refuses to decode Focus frames without a valid crop. */
+internal object FrameDecodePolicy {
+    fun request(previewEnabled: Boolean, focusEnabled: Boolean, cropAvailable: Boolean): FrameDecodeRequest = when {
+        focusEnabled && !cropAvailable -> FrameDecodeRequest.FOCUS_UNAVAILABLE
+        previewEnabled -> FrameDecodeRequest.MULTIPLE_CANDIDATES
+        focusEnabled -> FrameDecodeRequest.FOCUSED_SINGLE
+        else -> FrameDecodeRequest.NORMAL
     }
-    fun character(key: String): String = if ((shifted || capsLock) && key.length == 1) key.uppercase() else key.lowercase()
-    fun consumeCharacter(key: String): String = character(key).also { if (!capsLock) shifted = false }
-}
-
-/** Explicit Scanner/Keyboard transition state, independent of camera lifecycle resources. */
-internal class ScannerKeyboardMode {
-    @Volatile private var keyboardActive = false
-    fun showKeyboard(): Boolean {
-        if (keyboardActive) return false
-        keyboardActive = true
-        return true
-    }
-    fun showScanner(): Boolean {
-        if (!keyboardActive) return false
-        keyboardActive = false
-        return true
-    }
-    fun isKeyboardActive(): Boolean = keyboardActive
 }
 
 /** Invalidates camera results captured before a mode or surface transition. */

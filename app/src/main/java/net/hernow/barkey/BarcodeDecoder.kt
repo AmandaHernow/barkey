@@ -29,6 +29,7 @@ internal fun interface FrameValueDecoder<F> {
 internal fun interface BarcodeFrameDecoder {
     fun decode(frame: ImageProxy, mode: ScanMode): DecodeOutcome
     fun decodeCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect? = null): DecodeOutcome = decode(frame, mode)
+    fun decodeFocused(frame: ImageProxy, mode: ScanMode, crop: Rect): DecodeOutcome = decodeCandidates(frame, mode, crop)
 }
 
 internal fun needsJavaTextFallback(rawBytes: ByteArray, text: String?): Boolean =
@@ -107,14 +108,14 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     override fun decode(frame: ImageProxy, mode: ScanMode): DecodeOutcome = router.decode(frame, mode)
 
     override fun decodeCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect?): DecodeOutcome {
-        if (crop != null) return decodeJavaCandidates(frame, mode, crop)
-        if (!nativeCanRead(frame)) return decodeJavaCandidates(frame, mode, null)
+        if (crop != null) return decodeJavaCrop(frame, mode, crop, multiple = true)
+        if (!nativeCanRead(frame)) return decodeJavaCrop(frame, mode, null, multiple = true)
         return try {
             val reader = multiNativeReaders.getOrPut(mode) { BarcodeReader(BarcodeDecoderProfiles.nativeOptions(mode, 8)) }
             val rawResults = reader.read(frame)
             if (rawResults.any { result -> result.format != BarcodeReader.Format.NONE && result.error == null &&
                     !result.bytes.isNullOrEmpty() && needsJavaTextFallback(result.bytes!!, result.text) }) {
-                return decodeJavaCandidates(frame, mode, null)
+                return decodeJavaCrop(frame, mode, null, multiple = true)
             }
             val results = rawResults.asSequence()
                 .filter { it.format != BarcodeReader.Format.NONE && it.error == null && !it.bytes.isNullOrEmpty() }
@@ -123,13 +124,16 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
         } catch (error: Throwable) {
             if (error is VirtualMachineError || error is ThreadDeath) throw error
             // Native decoding remains primary. Use Java only when native is unavailable or errors.
-            decodeJavaCandidates(frame, mode, null)
+            decodeJavaCrop(frame, mode, null, multiple = true)
         }
     }
 
+    override fun decodeFocused(frame: ImageProxy, mode: ScanMode, crop: Rect): DecodeOutcome =
+        decodeJavaCrop(frame, mode, crop, multiple = false)
+
     private val multiNativeReaders = mutableMapOf<ScanMode, BarcodeReader>()
 
-    private fun decodeJavaCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect?): DecodeOutcome {
+    private fun decodeJavaCrop(frame: ImageProxy, mode: ScanMode, crop: Rect?, multiple: Boolean): DecodeOutcome {
       return try {
         val plane = frame.planes.firstOrNull() ?: return DecodeOutcome.NotFound
         val frameCrop = crop ?: frame.cropRect
@@ -145,9 +149,15 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
                 DecodeHintType.TRY_HARDER to BarcodeDecoderProfiles.javaTryHarder(mode)))
         }
         try {
-            val found = GenericMultipleBarcodeReader(reader).decodeMultiple(BinaryBitmap(HybridBinarizer(oriented)))
-                .mapNotNull { it.text.takeIf(String::isNotEmpty) }.distinct().take(8)
-            if (found.isEmpty()) DecodeOutcome.NotFound else DecodeOutcome.Values(found)
+            val bitmap = BinaryBitmap(HybridBinarizer(oriented))
+            if (multiple) {
+                val found = GenericMultipleBarcodeReader(reader).decodeMultiple(bitmap)
+                    .mapNotNull { it.text.takeIf(String::isNotEmpty) }.distinct().take(8)
+                if (found.isEmpty()) DecodeOutcome.NotFound else DecodeOutcome.Values(found)
+            } else {
+                val text = reader.decodeWithState(bitmap).text.takeIf(String::isNotEmpty)
+                text?.let(DecodeOutcome::Value) ?: DecodeOutcome.NotFound
+            }
         } catch (_: NotFoundException) { DecodeOutcome.NotFound }
           catch (_: ChecksumException) { DecodeOutcome.NotFound }
           catch (_: FormatException) { DecodeOutcome.NotFound }

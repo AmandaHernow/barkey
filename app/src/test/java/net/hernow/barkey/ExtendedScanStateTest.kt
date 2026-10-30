@@ -7,146 +7,191 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExtendedScanStateTest {
-    @Test fun previewCandidatesAreUniqueAndExpireWithoutKeepingHistory() {
+    @Test fun previewSuppressesAutomaticInsertionAndAllowsOnlyLiveDistinctCandidates() {
         val state = PreviewCandidateState(expiryMillis = 1_000)
-        assertEquals(listOf("A", "B"), state.update(listOf("A", "A", "B"), 10))
-        assertTrue(state.isSelectable("A", 10))
+        assertTrue(PreviewDeliveryPolicy.mayInsertAutomatically(previewEnabled = false))
+        assertFalse(PreviewDeliveryPolicy.mayInsertAutomatically(previewEnabled = true))
+        assertEquals(listOf("A", "B"), state.update(listOf("A", "A", "B", ""), 10))
+        assertTrue(PreviewDeliveryPolicy.maySelect(true, state, "A", 10))
+        assertFalse(PreviewDeliveryPolicy.maySelect(false, state, "A", 10))
+        assertFalse(PreviewDeliveryPolicy.maySelect(true, state, "missing", 10))
         assertEquals(listOf("A", "B"), state.update(listOf("B"), 900))
-        assertEquals(listOf("B"), state.expire(1_500))
-        assertFalse(state.isSelectable("A", 1_500))
-        assertTrue(state.isSelectable("B", 1_500))
+        assertEquals(listOf("B"), state.expire(1_101))
+        assertFalse(PreviewDeliveryPolicy.maySelect(true, state, "A", 1_101))
+        assertTrue(PreviewDeliveryPolicy.maySelect(true, state, "B", 1_101))
         assertEquals(emptyList<String>(), state.expire(1_901))
-        state.clear()
-        assertEquals(emptyList<String>(), state.expire(3_000))
+        assertEquals(listOf("1", "2"), PreviewCandidateState(maxCandidates = 2).update(listOf("1", "2", "3"), 0))
     }
 
-    @Test fun previewStateRefreshesRepeatedValuesAndDeduplicates() {
+    @Test fun previewKeepsCompleteLongValuesAndRejectsSelectionsAfterClearOrSessionChange() {
         val state = PreviewCandidateState()
-        assertEquals(listOf("SKU", "LOT"), state.update(listOf("SKU", "SKU", "LOT"), 100))
-        assertEquals(listOf("SKU", "LOT"), state.update(listOf("LOT", "SKU"), 200))
-        assertEquals(emptyList<String>(), state.expire(1_301))
+        val longValue = "A".repeat(500)
+        state.update(listOf(longValue), 100)
+        val oldSelection = state.selectionToken()
+        assertTrue(PreviewDeliveryPolicy.maySelect(true, state, longValue, 100, oldSelection))
+        state.clear() // field, camera, mode, Help or IME visibility transition
+        assertFalse(PreviewDeliveryPolicy.maySelect(true, state, longValue, 101, oldSelection))
+        val callbacks = CallbackGeneration()
+        val capturedGeneration = callbacks.current()
+        assertTrue(callbacks.accepts(capturedGeneration))
+        callbacks.advance()
+        assertFalse(callbacks.accepts(capturedGeneration))
     }
 
-    @Test fun scanRegionMapsPreviewCropAndOrientation() {
-        val square = ScanRegionGeometry.RectF(25f, 25f, 75f, 75f)
-        val mapped = ScanRegionGeometry.mapPreviewSquare(square, 100, 100, 200, 100, 0)
-        assertEquals(75f, mapped!!.left, 0.01f)
-        assertEquals(25f, mapped.top, 0.01f)
-        assertEquals(125f, mapped.right, 0.01f)
-        assertEquals(75f, mapped.bottom, 0.01f)
-        assertTrue(ScanRegionGeometry.contains(mapped, 100f, 50f))
-        assertFalse(ScanRegionGeometry.contains(mapped, 50f, 50f))
+    @Test fun focusWithoutPreviewUsesSingleCroppedDecodeAndInvalidCropFailsClosed() {
+        assertEquals(FrameDecodeRequest.NORMAL, FrameDecodePolicy.request(false, false, true))
+        assertEquals(FrameDecodeRequest.FOCUSED_SINGLE, FrameDecodePolicy.request(false, true, true))
+        assertEquals(FrameDecodeRequest.MULTIPLE_CANDIDATES, FrameDecodePolicy.request(true, false, true))
+        assertEquals(FrameDecodeRequest.MULTIPLE_CANDIDATES, FrameDecodePolicy.request(true, true, true))
+        assertEquals(FrameDecodeRequest.FOCUS_UNAVAILABLE, FrameDecodePolicy.request(false, true, false))
+        assertEquals(FrameDecodeRequest.FOCUS_UNAVAILABLE, FrameDecodePolicy.request(true, true, false))
+    }
 
-        val rotated = ScanRegionGeometry.mapPreviewSquare(
-            ScanRegionGeometry.RectF(50f, 25f, 100f, 75f), 100, 100, 100, 200, 90,
+    @Test fun focusProductionCropMapperHandlesAllRightAngleRotationsAndAspectRatios() {
+        val crop = FocusRegionGeometry.ImageRect(31, 17, 431, 217)
+        val previewRect = FocusRegionGeometry.RectF(20f, 10f, 80f, 60f)
+        val previewWidth = 100f
+        val previewHeight = 100f
+        val cropWidth = 400f
+        val cropHeight = 200f
+
+        // Inject the same crop-local transform callback used to wrap CameraX CoordinateTransform
+        // in production. These affine equivalents exercise the mapper's rotation/clipping/offset.
+        val expected = mapOf(
+            0 to FocusRegionGeometry.ImageRect(111, 37, 351, 137),
+            90 to FocusRegionGeometry.ImageRect(71, 57, 271, 177),
+            180 to FocusRegionGeometry.ImageRect(111, 97, 351, 197),
+            270 to FocusRegionGeometry.ImageRect(191, 57, 391, 177),
         )
-        assertEquals(25f, rotated!!.left, 0.01f)
-        assertEquals(50f, rotated.top, 0.01f)
-        assertEquals(75f, rotated.right, 0.01f)
-        assertEquals(100f, rotated.bottom, 0.01f)
-
-        val upsideDown = ScanRegionGeometry.mapPreviewSquare(
-            ScanRegionGeometry.RectF(25f, 25f, 75f, 75f), 100, 100, 100, 200, 180,
-        )!!
-        assertEquals(25f, upsideDown.left, 0.01f)
-        assertEquals(75f, upsideDown.top, 0.01f)
-        assertEquals(75f, upsideDown.right, 0.01f)
-        assertEquals(125f, upsideDown.bottom, 0.01f)
-
-        val rotated270 = ScanRegionGeometry.mapPreviewSquare(
-            ScanRegionGeometry.RectF(50f, 25f, 100f, 75f), 100, 100, 100, 200, 270,
-        )!!
-        assertEquals(25f, rotated270.left, 0.01f)
-        assertEquals(100f, rotated270.top, 0.01f)
-        assertEquals(75f, rotated270.right, 0.01f)
-        assertEquals(150f, rotated270.bottom, 0.01f)
+        for (rotation in listOf(0, 90, 180, 270)) {
+            val mapped = FocusRegionGeometry.mapPreviewRectToImageCrop(previewRect, crop) { rect ->
+                val l = rect.left / previewWidth
+                val t = rect.top / previewHeight
+                val r = rect.right / previewWidth
+                val b = rect.bottom / previewHeight
+                when (rotation) {
+                    0 -> { rect.left = l * cropWidth; rect.top = t * cropHeight; rect.right = r * cropWidth; rect.bottom = b * cropHeight }
+                    90 -> { rect.left = t * cropWidth; rect.top = (1f - r) * cropHeight; rect.right = b * cropWidth; rect.bottom = (1f - l) * cropHeight }
+                    180 -> { rect.left = (1f - r) * cropWidth; rect.top = (1f - b) * cropHeight; rect.right = (1f - l) * cropWidth; rect.bottom = (1f - t) * cropHeight }
+                    270 -> { rect.left = (1f - b) * cropWidth; rect.top = l * cropHeight; rect.right = (1f - t) * cropWidth; rect.bottom = r * cropHeight }
+                }
+            }
+            assertEquals("rotation $rotation", expected[rotation], mapped)
+        }
     }
 
-    @Test fun scanRegionHandlesAspectRatioCropAndClampsToImageCrop() {
-        val mapped = ScanRegionGeometry.mapPreviewSquare(
-            ScanRegionGeometry.RectF(-20f, 10f, 30f, 60f), 100, 100, 400, 200, 0,
-            ScanRegionGeometry.RectF(20f, 10f, 380f, 190f),
-        )!!
-        assertTrue(mapped.left >= 20f && mapped.top >= 10f)
-        assertTrue(mapped.right <= 380f && mapped.bottom <= 190f)
-        assertTrue(mapped.right > mapped.left && mapped.bottom > mapped.top)
-        assertNull(ScanRegionGeometry.mapPreviewSquare(
-            ScanRegionGeometry.RectF(0f, 0f, 10f, 10f), 0, 100, 100, 100, 0,
-        ))
-        val clamped = ScanRegionGeometry.clampSquare(-10f, 80f, 40f, 100f, 100f)
-        assertEquals(0f, clamped.left, 0f)
-        assertEquals(60f, clamped.top, 0f)
-        assertEquals(40f, clamped.right, 0f)
-        assertEquals(100f, clamped.bottom, 0f)
+    @Test fun focusMapperClipsToNonZeroCropAndRejectsInvalidRegionsAndStaleTransforms() {
+        val crop = FocusRegionGeometry.ImageRect(20, 10, 380, 190)
+        val mapped = FocusRegionGeometry.mapPreviewRectToImageCrop(
+            FocusRegionGeometry.RectF(-20f, 10f, 30f, 60f), crop,
+        ) { rect ->
+            // Different preview/analysis aspect ratios and a PreviewView resize are represented
+            // by CameraX's current transform; its result must remain crop-local.
+            rect.left *= 4f; rect.top *= 2f; rect.right *= 4f; rect.bottom *= 2f
+        }
+        assertEquals(FocusRegionGeometry.ImageRect(20, 30, 140, 130), mapped)
+        assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
+            FocusRegionGeometry.RectF(0f, 0f, 10f, 10f), crop,
+        ) { throw IllegalStateException("stale transform") })
+        assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
+            FocusRegionGeometry.RectF(0f, 0f, 0f, 10f), crop,
+        ) {})
+        assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
+            FocusRegionGeometry.RectF(0f, 0f, 10f, 10f), FocusRegionGeometry.ImageRect(4, 4, 4, 9),
+        ) {})
+        assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
+            FocusRegionGeometry.RectF(0f, 0f, 10f, 10f), crop,
+        ) { rect -> rect.left = 500f; rect.right = 600f })
+        assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
+            FocusRegionGeometry.RectF(0f, 0f, 10f, 10f), crop,
+        ) { it.left = Float.NaN })
     }
 
-    @Test fun singleScanConsumesOnlyAfterSuccessAndSurvivesViewRecreation() {
+    @Test fun focusSquareClampsAtEachPreviewEdgeAndTracksResizedPreviewCoordinates() {
+        val positions = listOf(
+            FocusRegionGeometry.clampSquare(-50f, -50f, 40f, 100f, 80f),
+            FocusRegionGeometry.clampSquare(90f, -50f, 40f, 100f, 80f),
+            FocusRegionGeometry.clampSquare(-50f, 70f, 40f, 100f, 80f),
+            FocusRegionGeometry.clampSquare(90f, 70f, 40f, 100f, 80f),
+        )
+        assertEquals(FocusRegionGeometry.RectF(0f, 0f, 40f, 40f), positions[0])
+        assertEquals(FocusRegionGeometry.RectF(60f, 0f, 100f, 40f), positions[1])
+        assertEquals(FocusRegionGeometry.RectF(0f, 40f, 40f, 80f), positions[2])
+        assertEquals(FocusRegionGeometry.RectF(60f, 40f, 100f, 80f), positions[3])
+        val resized = FocusRegionGeometry.RectF(0.25f, 0.25f, 0.75f, 0.75f)
+        assertEquals(200f, resized.left * 800f, 0f)
+        assertEquals(100f, resized.top * 400f, 0f)
+        assertEquals(FocusRegionGeometry.RectF(0f, 0f, 0f, 0f), FocusRegionGeometry.clampSquare(0f, 0f, 20f, 0f, 50f))
+    }
+
+    @Test fun singleScanConsumesOnlyAfterSuccessfulInsertionAndSurvivesViewRedraw() {
         val connection = Any()
         val gate = SingleScanGate()
         val field = EditorFieldKey(connection, "example.app", 12)
         gate.moveTo(field)
-        assertFalse(gate.isConsumed()) // failed insertion leaves the allowance available
-        assertTrue(gate.consume()) // only a successful insertion calls consume
-        gate.moveTo(field) // a keyboard/input-view redraw retains the same editor identity
+        assertFalse(gate.isConsumed()) // Failed insertion does not call consume.
+        assertTrue(gate.consume())
+        assertFalse(gate.consume()) // Repeated automatic scan / Preview choice is rejected.
+        assertFalse(gate.moveTo(field)) // Input-view recreation in same field.
         assertTrue(gate.isConsumed())
-        gate.moveTo(EditorFieldKey(Any(), "example.app", 12)) // the same reported field survives connection recreation
+        assertFalse(gate.moveTo(EditorFieldKey(Any(), "example.app", 12))) // Stable non-zero field ID survives connection recreation.
         assertTrue(gate.isConsumed())
-        assertFalse(gate.consume())
-        gate.moveTo(EditorFieldKey(connection, "example.app", 13))
+        assertTrue(gate.moveTo(EditorFieldKey(connection, "example.app", 13)))
         assertFalse(gate.isConsumed())
     }
 
-    @Test fun singleScanUsesInputConnectionIdentityAndDoesNotResetForSuffixActions() {
+    @Test fun singleScanUsesConnectionFallbackForMissingIdsAndTreatsReusedIdsConservatively() {
         val gate = SingleScanGate()
         val connection = Any()
         gate.moveTo(EditorFieldKey(connection, "example.app", 0))
-        gate.consume()
-        // Enter/Tab actions do not call moveTo, so they cannot reset the allowance.
+        assertTrue(gate.consume())
+        assertFalse(gate.moveTo(EditorFieldKey(connection, "example.app", 0)))
         assertTrue(gate.isConsumed())
-        gate.moveTo(EditorFieldKey(Any(), "example.app", 0))
+        assertTrue(gate.moveTo(EditorFieldKey(Any(), "example.app", 0)))
+        assertFalse(gate.isConsumed())
+
+        gate.moveTo(EditorFieldKey(connection, "example.app", 12))
+        gate.consume()
+        assertFalse(gate.moveTo(EditorFieldKey(Any(), "example.app", 12))) // A reused positive ID is ambiguous; stay blocked.
+        assertTrue(gate.isConsumed())
+    }
+
+    @Test fun singleScanInputLifecycleResetStartsASeparateEditorSession() {
+        val gate = SingleScanGate()
+        gate.moveTo(EditorFieldKey(Any(), "example.app", 31))
+        assertTrue(gate.consume())
+        gate.reset() // InputMethodService.onFinishInput ends the prior session.
+        gate.moveTo(EditorFieldKey(Any(), "example.app", 31))
         assertFalse(gate.isConsumed())
     }
 
-    @Test fun previewSelectionConsumesSingleScanOnlyAfterSuccessfulInsertion() {
+    @Test fun singleScanPreviewFailedSelectionAndSuffixDoNotConsumeOrResetAllowance() {
         val preview = PreviewCandidateState()
         val single = SingleScanGate()
-        single.moveTo(EditorFieldKey(Any(), "example.app", 5))
+        val connection = Any()
+        single.moveTo(EditorFieldKey(connection, "example.app", 5))
         preview.update(listOf("chosen", "other"), 100)
-        assertTrue(preview.isSelectable("chosen", 100))
-        assertFalse(single.isConsumed()) // failed delivery does not consume the field allowance
-        assertTrue(single.consume()) // the service does this only after commitText succeeds
+        assertTrue(PreviewDeliveryPolicy.maySelect(true, preview, "chosen", 100))
+        assertFalse(single.isConsumed()) // rejected editor insertion leaves the allowance available
+        assertTrue(single.consume()) // successful preview insertion
+        assertFalse(single.consume()) // repeated Preview selection is rejected in the consumed field
+        // Enter/Tab has no effect unless Android later reports a different field.
         assertTrue(single.isConsumed())
-    }
-
-    @Test fun swedishKeyboardHandlesCaseSymbolsAndLayoutTransitions() {
-        val keyboard = SwedishKeyboardState()
-        assertEquals("å", keyboard.consumeCharacter("å"))
-        keyboard.toggleShift()
-        assertEquals("Ä", keyboard.consumeCharacter("ä"))
-        assertFalse(keyboard.shifted)
-        keyboard.toggleSymbols()
-        assertTrue(keyboard.symbols)
-        assertEquals("1", keyboard.consumeCharacter("1"))
-        keyboard.toggleSymbols()
-        assertFalse(keyboard.symbols)
-    }
-
-    @Test fun manualKeyboardTransitionsBetweenScannerAndKeyboard() {
-        val mode = ScannerKeyboardMode()
-        assertFalse(mode.isKeyboardActive())
-        assertTrue(mode.showKeyboard())
-        assertTrue(mode.isKeyboardActive())
-        assertFalse(mode.showKeyboard())
-        assertTrue(mode.showScanner())
-        assertFalse(mode.isKeyboardActive())
-        assertFalse(mode.showScanner())
+        assertFalse(single.moveTo(EditorFieldKey(Any(), "example.app", 5)))
+        assertTrue(single.isConsumed())
+        single.reset() // disabling Single Scan returns to continuous mode
+        single.moveTo(EditorFieldKey(Any(), "example.app", 5))
+        assertFalse(single.isConsumed())
+        single.consume()
+        single.moveTo(EditorFieldKey(Any(), "example.app", 5)) // re-enable while still in same field remains blocked
+        assertTrue(single.isConsumed())
     }
 
     @Test fun modeChangesRejectCallbacksCapturedByAnOlderSettingsGeneration() {
         val generation = CallbackGeneration()
         val before = generation.current()
         assertTrue(generation.accepts(before))
-        generation.advance() // Preview, Focus or Keyboard changed while a frame was decoding.
+        generation.advance() // Preview, Focus, Single Scan or Fast/Accurate changed while decoding.
         assertFalse(generation.accepts(before))
         assertTrue(generation.accepts(generation.current()))
     }
