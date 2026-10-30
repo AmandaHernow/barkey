@@ -608,10 +608,13 @@ class BarcodeInputService : InputMethodService() {
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         val switchButton = Button(this).apply {
-            text = getString(R.string.switch_keyboard_compact)
-            minWidth = dp(64)
+            text = ""
+            minWidth = dp(48)
             minHeight = dp(48)
-            setPadding(dp(4), 0, dp(4), 0)
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 0)
+            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_keyboard_switch, 0, 0, 0)
+            compoundDrawableTintList = ContextCompat.getColorStateList(this@BarcodeInputService, R.color.keyboard_button_text)
             contentDescription = getString(R.string.switch_keyboard)
             isFocusable = false
             isFocusableInTouchMode = false
