@@ -238,6 +238,30 @@ class ResponsiveKeyboardLayoutPolicyTest {
         assertEquals(dp(760, 2f), plans.first().bottomRowWidthPx)
     }
 
+    @Test fun toolbarPlanChangesForWidthAndFontScaleEvenWhenTheColumnCountIsUnchanged() {
+        val narrower = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(400, 2f), density = 2f, fontScale = 1f,
+        )
+        val widerSameColumns = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(430, 2f), density = 2f, fontScale = 1f,
+        )
+        assertEquals(6, narrower.editingColumns)
+        assertEquals(narrower.editingColumns, widerSameColumns.editingColumns)
+        assertTrue(narrower != widerSameColumns)
+
+        val narrowerFallback = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(320, 2f), density = 2f, fontScale = 1f,
+        )
+        assertEquals(5, narrowerFallback.editingColumns)
+        assertTrue(narrowerFallback != narrower)
+
+        val largerFont = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(400, 2f), density = 2f, fontScale = 1.5f,
+        )
+        assertEquals(4, largerFont.editingColumns)
+        assertTrue(largerFont != narrower)
+    }
+
     @Test fun compactEditingAndBottomRowsReduceMinimumHeightWithoutReducingPreviewFloor() {
         val previousRows = ResponsiveKeyboardLayoutPolicy.InputViewContentHeights(
             permanentContentHeightPx = 180,

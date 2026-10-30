@@ -168,7 +168,6 @@ class BarcodeInputService : InputMethodService() {
     override fun onCreateInputView(): View {
         removeKeyboardLayoutListener()
         val density = resources.displayMetrics.density
-        val fontScale = resources.configuration.fontScale
         fun dp(value: Int) = (value * density).toInt()
 
         val root = LinearLayout(this).apply {
@@ -320,7 +319,7 @@ class BarcodeInputService : InputMethodService() {
             text = label
             contentDescription = description
             minHeight = dp(48)
-            minWidth = dp((76f * fontScale).toInt().coerceAtLeast(76))
+            minWidth = dp(76)
             isAllCaps = false
             isFocusable = false
             isFocusableInTouchMode = false
@@ -725,7 +724,7 @@ class BarcodeInputService : InputMethodService() {
             root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
         ) - root.paddingLeft - root.paddingRight
         val initialAvailableWidth = initialContentWidth.coerceAtLeast(1)
-        rebuildToolbarRows(toolbar, editingButtons, initialAvailableWidth, density, fontScale, actions)
+        rebuildToolbarRows(toolbar, editingButtons, initialAvailableWidth, density, resources.configuration.fontScale, actions)
         val initialContentHeights = measureInputViewContentHeights(
             root, resizeHandle, statusRow, modeControlsScroll, candidatesScroll, enableCamera, toolbar, actions, developerSignature,
             initialAvailableWidth,
@@ -751,7 +750,7 @@ class BarcodeInputService : InputMethodService() {
             val measuredWidth = (
                 root.width - root.paddingLeft - root.paddingRight
             ).coerceAtLeast(1)
-            rebuildToolbarRows(toolbar, editingButtons, measuredWidth, density, fontScale, actions)
+            rebuildToolbarRows(toolbar, editingButtons, measuredWidth, density, resources.configuration.fontScale, actions)
             measuredInputViewContentHeights = measureInputViewContentHeights(
                 root, resizeHandle, statusRow, modeControlsScroll, candidatesScroll, enableCamera, toolbar, actions, developerSignature, measuredWidth,
             )
@@ -1098,8 +1097,10 @@ class BarcodeInputService : InputMethodService() {
         setCenteredWidth(toolbar, plan.controlGroupWidthPx)
         setCenteredWidth(actions, plan.bottomRowWidthPx)
         if (toolbar.tag == plan) return
-        toolbar.tag = plan
         toolbar.removeAllViews()
+        buttons.forEach { button ->
+            (button.parent as? ViewGroup)?.removeView(button)
+        }
         buttons.chunked(plan.editingColumns).forEach { rowButtons ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -1115,6 +1116,7 @@ class BarcodeInputService : InputMethodService() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { gravity = Gravity.CENTER_HORIZONTAL })
         }
+        toolbar.tag = plan
     }
 
     private fun removeKeyboardLayoutListener() {

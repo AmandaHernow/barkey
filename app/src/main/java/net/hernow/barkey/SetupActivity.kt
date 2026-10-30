@@ -158,6 +158,7 @@ class SetupActivity : Activity() {
             visibility = if (controlsExpanded) View.VISIBLE else View.GONE
         }
         val chevron = text("⌄", 26f, bold = true).apply {
+            text = if (controlsExpanded) "⌃" else "⌄"
             gravity = Gravity.CENTER
             setTextColor(color(R.color.setup_controls_accent))
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
