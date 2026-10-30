@@ -171,9 +171,10 @@
           <li>UPC-A, UPC-E, EAN-8, EAN-13, Code 39, Code 93, Code 128, ITF and Codabar.</li>
           <li>GS1 DataBar (RSS-14) and GS1 DataBar Expanded (RSS Expanded), including Omni, Stacked, Stacked Omni, Limited and Expanded Stacked variants.</li>
           <li>One-level guarded Undo, repeating Backspace, Space, Left, Right, Tab and Enter controls.</li>
+          <li>Optional Preview to choose among up to eight detected codes, Focus to restrict decoding to a movable and resizable area, and Single Scan to allow one successful insertion per recognised text field.</li>
           <li>Docked, resizable keyboard with portrait and landscape layouts and light and dark appearance.</li>
         </ul>
-        <p>Supported formats are configured in the app. Camera behaviour and editor actions can vary by device and the application containing the text field.</p>
+        <p>Preview pauses automatic insertion until you select a detected value. Suggestions expire when codes are no longer detected and cannot be selected after their editor or scanner context changes. Focus can be dragged, resized from its corner handle, and reset to the centre by long-pressing Focus. Focus and Preview can be combined; Focus uses the Java compatibility decoder for cropped frames, which may be slower and support fewer formats than normal scanning. Single Scan can be used with automatic scanning or Preview, is consumed only after an insertion succeeds, and allows another scan when BarKey recognises a different field. Some apps do not expose enough information for BarKey to recognise every field change. Supported formats are configured in the app; camera behaviour and editor actions can vary by device and host application.</p>
       </section>
       <section class="card" aria-labelledby="why"><span class="section-kicker">The thinking behind it</span><h2 id="why">Why I built BarKey</h2>
         <p>BarKey started with a simple idea. I wanted to scan a barcode and have the result go straight into whatever text field I was already using, without switching between applications or copying and pasting.</p>
@@ -193,7 +194,7 @@
         <p>BarKey is one of those contributions. It’s free, open source, and I intend to keep it that way.</p>
       </section>
       <section class="card" aria-labelledby="privacy"><span class="section-kicker">Privacy by design</span><h2 id="privacy">Local scanning, clear boundaries</h2>
-        <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan and Undo data is held in memory only as needed by the active input session.</p>
+        <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan values, Preview suggestions, duplicate-suppression state and guarded Undo context are held in memory only as needed by the active input session.</p>
         <a href="privacy-policy.html">Read the Android app Privacy Policy</a>
       </section>
       <section class="card developer-card" aria-labelledby="developer">

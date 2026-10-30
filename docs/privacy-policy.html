@@ -102,6 +102,7 @@
     <section class="policy-section" aria-labelledby="memory"><h2 id="memory">Temporary data, storage, and retention</h2>
       <ul>
         <li>Decoded text is temporarily held in memory while it is decoded and inserted into the focused field.</li>
+        <li>When Preview is enabled, BarKey temporarily keeps up to eight distinct currently detected values in memory so you can choose one to insert. A suggestion expires shortly after its code is no longer detected and cannot be selected after its editor or scanner context changes; this is not a scan history.</li>
         <li>Duplicate suppression retains the most recently accepted scan value in memory until the active input session ends and compares repeated values during a one-second window.</li>
         <li>Guarded Undo may retain the latest BarKey insertion and bounded surrounding cursor context in memory while it remains safely undoable.</li>
         <li>The duplicate-suppression value is cleared when the input session ends. Undo context is cleared when the input session ends, the keyboard is hidden or switched away from, or relevant editor context changes. BarKey has no permanent barcode history and does not write scan values to logs or persistent app storage.</li>
