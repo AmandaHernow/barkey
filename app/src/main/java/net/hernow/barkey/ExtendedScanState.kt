@@ -83,6 +83,17 @@ internal object PreviewDeliveryPolicy {
         nowMillis: Long,
         selectionToken: Long = candidates.selectionToken(),
     ): Boolean = previewEnabled && candidates.isSelectable(value, nowMillis, selectionToken)
+
+    fun maySelectFromContext(
+        previewEnabled: Boolean,
+        candidates: PreviewCandidateState,
+        value: String,
+        nowMillis: Long,
+        producedFor: EditorFieldKey,
+        current: EditorFieldKey?,
+        selectionToken: Long = candidates.selectionToken(),
+    ): Boolean = current != null && producedFor.isSamePreviewContext(current) &&
+        maySelect(previewEnabled, candidates, value, nowMillis, selectionToken)
 }
 
 /** A field key deliberately contains no field contents. */
@@ -94,6 +105,10 @@ internal data class EditorFieldKey(val connection: Any?, val packageName: String
         } else {
             fieldId == next.fieldId && connection != null && connection === next.connection
         }
+
+    /** Pending Preview choices require the exact connection and editor metadata that produced them. */
+    fun isSamePreviewContext(next: EditorFieldKey): Boolean =
+        connection != null && connection === next.connection && packageName == next.packageName && fieldId == next.fieldId
 }
 
 /** One accepted insertion per editor identity; input-view recreation does not reset it. */
@@ -134,7 +149,7 @@ internal class SingleScanGate {
     @Synchronized fun reset() { field = null; consumed = false }
 }
 
-/** Geometry helpers for the draggable Focus square and its production camera crop mapping. */
+/** Geometry helpers for the movable and resizable Focus region and its production camera crop mapping. */
 internal object FocusRegionGeometry {
     data class RectF(val left: Float, val top: Float, val right: Float, val bottom: Float)
     data class ImageRect(val left: Int, val top: Int, val right: Int, val bottom: Int) {
@@ -178,14 +193,80 @@ internal object FocusRegionGeometry {
         return clipped.takeUnless { it.isEmpty }
     }
 
-    fun clampSquare(left: Float, top: Float, size: Float, width: Float, height: Float): RectF {
-        if (!left.isFinite() || !top.isFinite() || !size.isFinite() || !width.isFinite() || !height.isFinite() ||
-            width <= 0f || height <= 0f || size <= 0f
+    /** Clamps a movable rectangle to preview bounds while enforcing per-axis size limits. */
+    fun clampRect(
+        left: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        boundsWidth: Float,
+        boundsHeight: Float,
+        minWidth: Float,
+        minHeight: Float,
+        maxWidth: Float = boundsWidth,
+        maxHeight: Float = boundsHeight,
+    ): RectF {
+        if (listOf(left, top, width, height, boundsWidth, boundsHeight, minWidth, minHeight, maxWidth, maxHeight).any { !it.isFinite() } ||
+            boundsWidth <= 0f || boundsHeight <= 0f || width <= 0f || height <= 0f || minWidth <= 0f || minHeight <= 0f
         ) return RectF(0f, 0f, 0f, 0f)
-        val side = size.coerceAtMost(width).coerceAtMost(height)
-        val x = left.coerceIn(0f, width - side)
-        val y = top.coerceIn(0f, height - side)
-        return RectF(x, y, x + side, y + side)
+        val minW = minWidth.coerceAtMost(boundsWidth)
+        val minH = minHeight.coerceAtMost(boundsHeight)
+        val actualWidth = width.coerceIn(minW, maxWidth.coerceIn(minW, boundsWidth))
+        val actualHeight = height.coerceIn(minH, maxHeight.coerceIn(minH, boundsHeight))
+        val x = left.coerceIn(0f, boundsWidth - actualWidth)
+        val y = top.coerceIn(0f, boundsHeight - actualHeight)
+        return RectF(x, y, x + actualWidth, y + actualHeight)
+    }
+
+    /** Resizes from the bottom-right corner, keeping the opposite corner anchored. */
+    fun resizeFromBottomRight(
+        current: RectF,
+        deltaWidth: Float,
+        deltaHeight: Float,
+        boundsWidth: Float,
+        boundsHeight: Float,
+        minWidth: Float,
+        minHeight: Float,
+    ): RectF {
+        if (!current.isFiniteAndNonEmpty() || !deltaWidth.isFinite() || !deltaHeight.isFinite() ||
+            !boundsWidth.isFinite() || !boundsHeight.isFinite() || !minWidth.isFinite() || !minHeight.isFinite() ||
+            boundsWidth <= 0f || boundsHeight <= 0f || minWidth <= 0f || minHeight <= 0f
+        ) return RectF(0f, 0f, 0f, 0f)
+        val left = current.left.coerceIn(0f, boundsWidth)
+        val top = current.top.coerceIn(0f, boundsHeight)
+        val availableWidth = (boundsWidth - left).coerceAtLeast(0f)
+        val availableHeight = (boundsHeight - top).coerceAtLeast(0f)
+        if (availableWidth == 0f || availableHeight == 0f) return RectF(0f, 0f, 0f, 0f)
+        val minW = minWidth.coerceAtLeast(1f).coerceAtMost(availableWidth)
+        val minH = minHeight.coerceAtLeast(1f).coerceAtMost(availableHeight)
+        val width = (current.right - current.left + deltaWidth).coerceIn(minW, availableWidth)
+        val height = (current.bottom - current.top + deltaHeight).coerceIn(minH, availableHeight)
+        return RectF(left, top, left + width, top + height)
+    }
+
+    fun centeredRect(boundsWidth: Float, boundsHeight: Float, width: Float, height: Float): RectF =
+        clampRect((boundsWidth - width) / 2f, (boundsHeight - height) / 2f, width, height,
+            boundsWidth, boundsHeight, minWidth = 1f, minHeight = 1f)
+
+    fun normalizedToPixels(
+        normalized: RectF,
+        width: Float,
+        height: Float,
+        minWidth: Float,
+        minHeight: Float,
+    ): RectF? {
+        if (!normalized.isFiniteAndNonEmpty() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f) return null
+        return clampRect(
+            normalized.left * width, normalized.top * height,
+            (normalized.right - normalized.left) * width, (normalized.bottom - normalized.top) * height,
+            width, height, minWidth, minHeight,
+        ).takeIf { it.isFiniteAndNonEmpty() }
+    }
+
+    fun pixelsToNormalized(rect: RectF, width: Float, height: Float): RectF? {
+        if (!rect.isFiniteAndNonEmpty() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f) return null
+        val normalized = RectF(rect.left / width, rect.top / height, rect.right / width, rect.bottom / height)
+        return normalized.takeIf { it.isFiniteAndNonEmpty() }
     }
 
     private fun RectF.isFiniteAndNonEmpty(): Boolean =

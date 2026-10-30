@@ -44,6 +44,46 @@ class ExtendedScanStateTest {
         assertFalse(callbacks.accepts(capturedGeneration))
     }
 
+    @Test fun previewSelectionRequiresTheExactProducingInputConnectionAndEditorMetadata() {
+        val state = PreviewCandidateState()
+        val connection = Any()
+        val producedFor = EditorFieldKey(connection, "example.app", 17)
+        val single = SingleScanGate().apply { moveTo(producedFor) }
+        state.update(listOf("code"), 100)
+        val token = state.selectionToken()
+
+        assertTrue(PreviewDeliveryPolicy.maySelectFromContext(
+            true, state, "code", 100, producedFor, EditorFieldKey(connection, "example.app", 17), token,
+        ))
+        assertFalse(single.isConsumed()) // A failed editor commit leaves the allowance available.
+        assertFalse(PreviewDeliveryPolicy.maySelectFromContext(
+            true, state, "code", 100, producedFor, EditorFieldKey(Any(), "example.app", 17), token,
+        )) // Same positive field ID, recreated connection.
+        assertFalse(PreviewDeliveryPolicy.maySelectFromContext(
+            true, state, "code", 100, producedFor, EditorFieldKey(connection, "example.app", 18), token,
+        ))
+        assertFalse(PreviewDeliveryPolicy.maySelectFromContext(true, state, "code", 100, producedFor, null, token))
+        assertTrue(single.consume()) // Only a successful insertion consumes it.
+    }
+
+    @Test fun previewContextValidationRetainsExpiryAndRejectsSelectionsAfterSessionChange() {
+        val state = PreviewCandidateState(expiryMillis = 100)
+        val connection = Any()
+        val context = EditorFieldKey(connection, "example.app", 22)
+        val sessions = ScanSessionGate()
+        val originalSession = sessions.beginSession()
+        state.update(listOf("session code"), 0)
+        val token = state.selectionToken()
+        assertTrue(PreviewDeliveryPolicy.maySelectFromContext(true, state, "session code", 50, context, context, token))
+        assertFalse(PreviewDeliveryPolicy.maySelectFromContext(true, state, "session code", 101, context, context, token))
+
+        sessions.endSession()
+        sessions.beginSession()
+        state.clear() // Input-session changes clear candidate state in the service.
+        assertFalse(sessions.isCurrent(originalSession))
+        assertFalse(PreviewDeliveryPolicy.maySelectFromContext(true, state, "session code", 102, context, context, token))
+    }
+
     @Test fun focusWithoutPreviewUsesSingleCroppedDecodeAndInvalidCropFailsClosed() {
         assertEquals(FrameDecodeRequest.NORMAL, FrameDecodePolicy.request(false, false, true))
         assertEquals(FrameDecodeRequest.FOCUSED_SINGLE, FrameDecodePolicy.request(false, true, true))
@@ -114,21 +154,99 @@ class ExtendedScanStateTest {
         ) { FocusRegionGeometry.RectF(Float.NaN, it.top, it.right, it.bottom) })
     }
 
-    @Test fun focusSquareClampsAtEachPreviewEdgeAndTracksResizedPreviewCoordinates() {
+    @Test fun focusRegionClampsAtEachPreviewEdgeAndTracksNormalizedCoordinates() {
         val positions = listOf(
-            FocusRegionGeometry.clampSquare(-50f, -50f, 40f, 100f, 80f),
-            FocusRegionGeometry.clampSquare(90f, -50f, 40f, 100f, 80f),
-            FocusRegionGeometry.clampSquare(-50f, 70f, 40f, 100f, 80f),
-            FocusRegionGeometry.clampSquare(90f, 70f, 40f, 100f, 80f),
+            FocusRegionGeometry.clampRect(-50f, -50f, 40f, 40f, 100f, 80f, 10f, 10f),
+            FocusRegionGeometry.clampRect(90f, -50f, 40f, 40f, 100f, 80f, 10f, 10f),
+            FocusRegionGeometry.clampRect(-50f, 70f, 40f, 40f, 100f, 80f, 10f, 10f),
+            FocusRegionGeometry.clampRect(90f, 70f, 40f, 40f, 100f, 80f, 10f, 10f),
         )
         assertEquals(FocusRegionGeometry.RectF(0f, 0f, 40f, 40f), positions[0])
         assertEquals(FocusRegionGeometry.RectF(60f, 0f, 100f, 40f), positions[1])
         assertEquals(FocusRegionGeometry.RectF(0f, 40f, 40f, 80f), positions[2])
         assertEquals(FocusRegionGeometry.RectF(60f, 40f, 100f, 80f), positions[3])
-        val resized = FocusRegionGeometry.RectF(0.25f, 0.25f, 0.75f, 0.75f)
-        assertEquals(200f, resized.left * 800f, 0f)
-        assertEquals(100f, resized.top * 400f, 0f)
-        assertEquals(FocusRegionGeometry.RectF(0f, 0f, 0f, 0f), FocusRegionGeometry.clampSquare(0f, 0f, 20f, 0f, 50f))
+        val normalised = FocusRegionGeometry.pixelsToNormalized(positions[0], 100f, 80f)
+        assertEquals(FocusRegionGeometry.RectF(0f, 0f, 0.4f, 0.5f), normalised)
+    }
+
+    @Test fun focusResizeSupportsNarrowWideMinimumMaximumAndPortraitLandscapeBounds() {
+        val original = FocusRegionGeometry.RectF(20f, 10f, 60f, 30f)
+        val narrow = FocusRegionGeometry.resizeFromBottomRight(original, -100f, -100f, 120f, 80f, 16f, 14f)
+        assertEquals(FocusRegionGeometry.RectF(20f, 10f, 36f, 24f), narrow)
+        val wide = FocusRegionGeometry.resizeFromBottomRight(original, 100f, 70f, 120f, 80f, 16f, 14f)
+        assertEquals(FocusRegionGeometry.RectF(20f, 10f, 120f, 80f), wide)
+
+        val portrait = FocusRegionGeometry.resizeFromBottomRight(
+            FocusRegionGeometry.RectF(20f, 100f, 50f, 140f), 100f, 100f, 120f, 240f, 20f, 20f,
+        )
+        assertEquals(FocusRegionGeometry.RectF(20f, 100f, 120f, 240f), portrait)
+        val landscape = FocusRegionGeometry.resizeFromBottomRight(
+            FocusRegionGeometry.RectF(180f, 20f, 220f, 60f), 100f, 100f, 240f, 120f, 20f, 20f,
+        )
+        assertEquals(FocusRegionGeometry.RectF(180f, 20f, 240f, 120f), landscape)
+
+        assertEquals(
+            FocusRegionGeometry.RectF(0f, 0f, 40f, 30f),
+            FocusRegionGeometry.clampRect(-5f, -5f, 40f, 30f, 100f, 80f, 20f, 20f),
+        )
+        assertEquals(
+            FocusRegionGeometry.RectF(0f, 0f, 100f, 80f),
+            FocusRegionGeometry.clampRect(40f, 30f, 200f, 200f, 100f, 80f, 20f, 20f),
+        )
+        assertEquals(FocusRegionGeometry.RectF(0f, 0f, 0f, 0f),
+            FocusRegionGeometry.resizeFromBottomRight(original, Float.NaN, 10f, 100f, 100f, 10f, 10f))
+    }
+
+    @Test fun focusRegionKeepsNormalizedRectangleAcrossPreviewResizeAndCanResetToCentre() {
+        val selected = FocusRegionGeometry.RectF(0.2f, 0.1f, 0.7f, 0.8f)
+        val portrait = FocusRegionGeometry.normalizedToPixels(selected, 200f, 400f, 24f, 24f)
+        val landscape = FocusRegionGeometry.normalizedToPixels(selected, 800f, 300f, 24f, 24f)
+        assertEquals(FocusRegionGeometry.RectF(40f, 40f, 140f, 320f), portrait)
+        assertEquals(FocusRegionGeometry.RectF(160f, 30f, 560f, 240f), landscape)
+        assertEquals(selected, FocusRegionGeometry.pixelsToNormalized(landscape!!, 800f, 300f))
+
+        assertEquals(FocusRegionGeometry.RectF(40f, 30f, 80f, 70f),
+            FocusRegionGeometry.centeredRect(120f, 100f, 40f, 40f))
+
+        val callbacks = CallbackGeneration()
+        val regionState = FocusRegionState(callbacks, PreviewCandidateState(), selected)
+        val oldGeneration = callbacks.current()
+        val reset = FocusRegionGeometry.pixelsToNormalized(
+            FocusRegionGeometry.centeredRect(120f, 100f, 40f, 40f), 120f, 100f,
+        )!!
+        assertTrue(regionState.update(reset, focusEnabled = true))
+        assertFalse(callbacks.accepts(oldGeneration))
+        assertEquals(reset, regionState.snapshot().region)
+    }
+
+    @Test fun focusResizingInvalidatesOldSuggestionsButPreservesSingleScanAllowance() {
+        val callbacks = CallbackGeneration()
+        val candidates = PreviewCandidateState()
+        val focus = FocusRegionState(callbacks, candidates)
+        val single = SingleScanGate()
+        single.moveTo(EditorFieldKey(Any(), "example.app", 41))
+        assertTrue(single.consume())
+        focus.update(FocusRegionGeometry.RectF(0.2f, 0.2f, 0.6f, 0.6f), focusEnabled = true)
+        candidates.update(listOf("before resize"), 10)
+        val oldToken = candidates.selectionToken()
+        val oldGeneration = callbacks.current()
+
+        assertTrue(focus.update(FocusRegionGeometry.RectF(0.2f, 0.2f, 0.9f, 0.45f), focusEnabled = true))
+        assertFalse(callbacks.accepts(oldGeneration))
+        assertFalse(PreviewDeliveryPolicy.maySelect(true, candidates, "before resize", 11, oldToken))
+        assertTrue(single.isConsumed())
+    }
+
+    @Test fun focusMovementAndResizeGeometryRejectInvalidOrEmptyCropRegions() {
+        val moved = FocusRegionGeometry.clampRect(80f, 15f, 30f, 20f, 100f, 60f, 10f, 10f)
+        assertEquals(FocusRegionGeometry.RectF(70f, 15f, 100f, 35f), moved)
+        assertNull(FocusRegionGeometry.normalizedToPixels(
+            FocusRegionGeometry.RectF(0.5f, 0.5f, 0.5f, 0.8f), 100f, 100f, 10f, 10f,
+        ))
+        assertNull(FocusRegionGeometry.pixelsToNormalized(FocusRegionGeometry.RectF(0f, 0f, 0f, 10f), 100f, 100f))
+        assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
+            FocusRegionGeometry.RectF(0f, 0f, 20f, 20f), FocusRegionGeometry.ImageRect(0, 0, 0, 20),
+        ) { it })
     }
 
     @Test fun focusMovementInvalidatesOldResultsAndPreviewCandidatesBeforeNewPositionIsAccepted() {

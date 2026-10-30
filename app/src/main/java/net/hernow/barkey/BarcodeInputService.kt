@@ -329,7 +329,12 @@ class BarcodeInputService : InputMethodService() {
         }
         val modeControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val previewButton = modeToggle(getString(R.string.preview_toggle), getString(R.string.preview_accessibility)) { togglePreview() }
-        val focusButton = modeToggle(getString(R.string.focus_toggle), getString(R.string.focus_accessibility)) { toggleFocus() }
+        val focusButton = modeToggle(getString(R.string.focus_toggle), getString(R.string.focus_accessibility)) { toggleFocus() }.apply {
+            setOnLongClickListener {
+                resetFocusRegion()
+                true
+            }
+        }
         val singleButton = modeToggle(getString(R.string.single_scan_toggle), getString(R.string.single_scan_accessibility)) { toggleSingleScan() }
         listOf(previewButton, focusButton, singleButton).forEach { button ->
             modeControls.addView(button, LinearLayout.LayoutParams(dp(96), dp(44)).apply { setMargins(dp(1), 0, dp(1), 0) })
@@ -387,8 +392,8 @@ class BarcodeInputService : InputMethodService() {
             }
         }
 
-        val focusRegion = View(this).apply {
-            contentDescription = getString(R.string.focus_accessibility)
+        val focusRegion = FrameLayout(this).apply {
+            contentDescription = getString(R.string.focus_region_accessibility)
             background = GradientDrawable().apply {
                 setColor(0x120B777C)
                 setStroke(dp(2), ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_text_secondary))
@@ -396,6 +401,68 @@ class BarcodeInputService : InputMethodService() {
             visibility = View.GONE
             isClickable = true
         }
+        val focusResizeHandle = TextView(this).apply {
+            text = "↘"
+            gravity = Gravity.CENTER
+            textSize = 18f
+            setTextColor(ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_button_text))
+            contentDescription = getString(R.string.focus_resize_accessibility)
+            background = GradientDrawable().apply {
+                setColor(0xDD0B777C.toInt())
+                setStroke(dp(2), ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_text_secondary))
+                cornerRadius = dp(8).toFloat()
+            }
+            isClickable = true
+            isFocusable = true
+        }
+        focusResizeHandle.setOnClickListener {
+            focusResizeHandle.announceForAccessibility(getString(R.string.focus_resize_accessibility))
+        }
+        var resizeDragX = 0f
+        var resizeDragY = 0f
+        focusResizeHandle.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    resizeDragX = event.rawX
+                    resizeDragY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (preview.width <= 0 || preview.height <= 0) return@setOnTouchListener true
+                    val lp = focusRegion.layoutParams as? FrameLayout.LayoutParams
+                        ?: return@setOnTouchListener true
+                    val resized = FocusRegionGeometry.resizeFromBottomRight(
+                        FocusRegionGeometry.RectF(
+                            lp.leftMargin.toFloat(), lp.topMargin.toFloat(),
+                            (lp.leftMargin + lp.width).toFloat(),
+                            (lp.topMargin + lp.height).toFloat(),
+                        ),
+                        event.rawX - resizeDragX,
+                        event.rawY - resizeDragY,
+                        preview.width.toFloat(),
+                        preview.height.toFloat(),
+                        dp(64).toFloat(),
+                        dp(64).toFloat(),
+                    )
+                    lp.width = (resized.right - resized.left).toInt()
+                    lp.height = (resized.bottom - resized.top).toInt()
+                    lp.leftMargin = resized.left.toInt()
+                    lp.topMargin = resized.top.toInt()
+                    resizeDragX = event.rawX
+                    resizeDragY = event.rawY
+                    focusRegion.layoutParams = lp
+                    updateFocusRegion(focusRegion, preview, lp.leftMargin, lp.topMargin, lp.width, lp.height)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    focusResizeHandle.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> true
+                else -> true
+            }
+        }
+        focusRegion.addView(focusResizeHandle, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM or Gravity.END))
         var regionDragX = 0f
         var regionDragY = 0f
         var regionStartX = 0f
@@ -419,10 +486,11 @@ class BarcodeInputService : InputMethodService() {
                     if (kotlin.math.abs(event.rawX - regionStartX) > touchSlop ||
                         kotlin.math.abs(event.rawY - regionStartY) > touchSlop) regionMoved = true
                     val lp = view.layoutParams as? FrameLayout.LayoutParams ?: return@setOnTouchListener true
-                    val clamped = FocusRegionGeometry.clampSquare(
+                    val clamped = FocusRegionGeometry.clampRect(
                         lp.leftMargin + (event.rawX - regionDragX),
                         lp.topMargin + (event.rawY - regionDragY),
-                        view.width.toFloat(), frame.width.toFloat(), frame.height.toFloat(),
+                        lp.width.toFloat(), lp.height.toFloat(), preview.width.toFloat(), preview.height.toFloat(),
+                        dp(64).toFloat(), dp(64).toFloat(),
                     )
                     lp.leftMargin = clamped.left.toInt()
                     lp.topMargin = clamped.top.toInt()
@@ -430,7 +498,7 @@ class BarcodeInputService : InputMethodService() {
                     view.layoutParams = lp
                     // Publish the selected bounds and invalidate old frames before another
                     // analyzer callback can be accepted. The view's eventual layout pass is a no-op.
-                    updateFocusSquare(view, preview, lp.leftMargin, lp.topMargin, view.width, view.height)
+                    updateFocusRegion(view, preview, lp.leftMargin, lp.topMargin, lp.width, lp.height)
                     true
                 }
                 MotionEvent.ACTION_UP -> {
@@ -446,7 +514,7 @@ class BarcodeInputService : InputMethodService() {
         }
         frame.addView(focusRegion, FrameLayout.LayoutParams(dp(160), dp(160), Gravity.CENTER))
         preview.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            val regionChanged = layoutFocusSquare(focusRegion, preview)
+            val regionChanged = layoutFocusRegion(focusRegion, preview)
             previewOutputTransform = null
             previewOutputTransformSize = null
             preview.post { refreshPreviewOutputTransform(preview, cameraRequestId) }
@@ -698,7 +766,7 @@ class BarcodeInputService : InputMethodService() {
         focusRegion.visibility = if (focusEnabled) View.VISIBLE else View.GONE
         clearPreviewCandidates()
         focusRegion.post {
-            layoutFocusSquare(focusRegion, preview)
+            layoutFocusRegion(focusRegion, preview)
         }
         torchButton = torchControl
         renderTorchButton()
@@ -1224,7 +1292,7 @@ class BarcodeInputService : InputMethodService() {
             previewView?.let { preview -> preview.post { refreshPreviewOutputTransform(preview, cameraRequestId) } }
         }
         focusOverlay?.visibility = if (focusEnabled) View.VISIBLE else View.GONE
-        if (focusEnabled) focusOverlay?.post { focusOverlay?.let { updateFocusSquare(it, previewView) } }
+        if (focusEnabled) focusOverlay?.post { focusOverlay?.let { updateFocusRegion(it, previewView) } }
         renderExtendedControls()
     }
 
@@ -1257,7 +1325,7 @@ class BarcodeInputService : InputMethodService() {
         render(singleScanToggleButton, true, singleScanEnabled)
     }
 
-    private fun updateFocusSquare(
+    private fun updateFocusRegion(
         view: View,
         preview: PreviewView?,
         left: Int = view.left,
@@ -1267,10 +1335,10 @@ class BarcodeInputService : InputMethodService() {
     ): Boolean {
         val p = preview ?: return false
         if (p.width <= 0 || p.height <= 0 || width <= 0 || height <= 0) return false
-        val next = FocusRegionGeometry.RectF(
-            left / p.width.toFloat(), top / p.height.toFloat(),
-            (left + width) / p.width.toFloat(), (top + height) / p.height.toFloat(),
-        )
+        val next = FocusRegionGeometry.pixelsToNormalized(
+            FocusRegionGeometry.RectF(left.toFloat(), top.toFloat(), (left + width).toFloat(), (top + height).toFloat()),
+            p.width.toFloat(), p.height.toFloat(),
+        ) ?: return false
         val changed = focusRegionState.update(next, focusEnabled)
         if (changed && focusEnabled) {
             clearPendingResults()
@@ -1280,21 +1348,47 @@ class BarcodeInputService : InputMethodService() {
         return changed
     }
 
-    private fun layoutFocusSquare(view: View, preview: PreviewView): Boolean {
+    private fun resetFocusRegion() {
+        val region = focusOverlay as? FrameLayout ?: return
+        val preview = previewView ?: return
+        if (preview.width <= 0 || preview.height <= 0) return
+        val width = minOf(dp(160), preview.width)
+        val height = minOf(dp(160), preview.height)
+        val reset = FocusRegionGeometry.centeredRect(
+            preview.width.toFloat(), preview.height.toFloat(), width.toFloat(), height.toFloat(),
+        )
+        val lp = region.layoutParams as? FrameLayout.LayoutParams ?: return
+        lp.gravity = Gravity.TOP or Gravity.START
+        lp.width = (reset.right - reset.left).toInt()
+        lp.height = (reset.bottom - reset.top).toInt()
+        lp.leftMargin = reset.left.toInt()
+        lp.topMargin = reset.top.toInt()
+        region.layoutParams = lp
+        updateFocusRegion(region, preview, lp.leftMargin, lp.topMargin, lp.width, lp.height)
+    }
+
+    private fun layoutFocusRegion(view: View, preview: PreviewView): Boolean {
         if (preview.width <= 0 || preview.height <= 0) return false
-        val side = minOf(dp(160), preview.width, preview.height).coerceAtLeast(1)
         val lp = view.layoutParams as? FrameLayout.LayoutParams ?: return false
         lp.gravity = Gravity.TOP or Gravity.START
-        lp.width = side
-        lp.height = side
         val stored = focusRegionState.snapshot().region
         val hasStoredPosition = stored.right > stored.left && stored.bottom > stored.top
-        val left = if (hasStoredPosition) (stored.left * preview.width).toInt() else (preview.width - side) / 2
-        val top = if (hasStoredPosition) (stored.top * preview.height).toInt() else (preview.height - side) / 2
-        lp.leftMargin = left.coerceIn(0, (preview.width - side).coerceAtLeast(0))
-        lp.topMargin = top.coerceIn(0, (preview.height - side).coerceAtLeast(0))
+        val defaultWidth = minOf(dp(160), preview.width).toFloat()
+        val defaultHeight = minOf(dp(160), preview.height).toFloat()
+        val clamped = if (hasStoredPosition) {
+            FocusRegionGeometry.normalizedToPixels(
+                stored, preview.width.toFloat(), preview.height.toFloat(),
+                minOf(dp(64), preview.width).toFloat(), minOf(dp(64), preview.height).toFloat(),
+            )
+        } else {
+            FocusRegionGeometry.centeredRect(preview.width.toFloat(), preview.height.toFloat(), defaultWidth, defaultHeight)
+        } ?: return false
+        lp.leftMargin = clamped.left.toInt()
+        lp.topMargin = clamped.top.toInt()
+        lp.width = (clamped.right - clamped.left).toInt()
+        lp.height = (clamped.bottom - clamped.top).toInt()
         view.layoutParams = lp
-        return updateFocusSquare(view, preview, lp.leftMargin, lp.topMargin, side, side)
+        return updateFocusRegion(view, preview, lp.leftMargin, lp.topMargin, lp.width, lp.height)
     }
 
     private fun mappedScanCrop(image: androidx.camera.core.ImageProxy, expectedSettingsGeneration: Long): Rect? {
@@ -1303,11 +1397,11 @@ class BarcodeInputService : InputMethodService() {
         val preview = previewView ?: return null
         val previewTransform = previewOutputTransform ?: return null
         if (previewOutputTransformSize != (preview.width to preview.height)) return null
-        val square = regionSnapshot.region
-        if (preview.width <= 0 || preview.height <= 0 || square.right <= square.left || square.bottom <= square.top) return null
+        val region = regionSnapshot.region
+        if (preview.width <= 0 || preview.height <= 0 || region.right <= region.left || region.bottom <= region.top) return null
         val mapped = android.graphics.RectF(
-            square.left * preview.width, square.top * preview.height,
-            square.right * preview.width, square.bottom * preview.height,
+            region.left * preview.width, region.top * preview.height,
+            region.right * preview.width, region.bottom * preview.height,
         )
         val crop = image.cropRect
         val validCrop = android.graphics.Rect(crop).apply { intersect(0, 0, image.width, image.height) }
@@ -1344,8 +1438,9 @@ class BarcodeInputService : InputMethodService() {
         val next = currentFieldKey() ?: return
         val previous = activeEditorField
         val changed = previous?.identifiesSameField(next) != true
+        val previewContextChanged = previous?.isSamePreviewContext(next) != true
         activeEditorField = next
-        if (changed) {
+        if (changed || previewContextChanged) {
             settingsCallbackGeneration.advance()
             clearPendingResults()
             clearPreviewCandidates()
@@ -1710,6 +1805,7 @@ class BarcodeInputService : InputMethodService() {
         values: List<String>, sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long,
     ) {
         val row = previewCandidateRow ?: return
+        val editorContext = currentFieldKey() ?: return
         if (values == renderedPreviewValues) return
         val selectionToken = previewCandidateState.selectionToken()
         renderedPreviewValues = values
@@ -1731,8 +1827,9 @@ class BarcodeInputService : InputMethodService() {
                 isAllCaps = false
                 setOnClickListener {
                     syncActiveEditorField()
-                    if (!PreviewDeliveryPolicy.maySelect(
-                            previewEnabled, previewCandidateState, value, SystemClock.elapsedRealtime(), selectionToken,
+                    if (!PreviewDeliveryPolicy.maySelectFromContext(
+                            previewEnabled, previewCandidateState, value, SystemClock.elapsedRealtime(),
+                            editorContext, currentFieldKey(), selectionToken,
                         )
                     ) return@setOnClickListener
                     insertDecodedValue(value, sessionId, cameraGeneration, modeGeneration, settingsGeneration)
