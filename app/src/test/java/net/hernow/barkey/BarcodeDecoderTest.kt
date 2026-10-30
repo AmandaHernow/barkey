@@ -27,6 +27,7 @@ class BarcodeDecoderTest {
         assertTrue(accurate.tryDownscale)
         assertFalse(accurate.tryDenoise)
         assertEquals(1, accurate.maxNumberOfSymbols)
+        assertEquals(8, BarcodeDecoderProfiles.nativeOptions(ScanMode.ACCURATE, 8).maxNumberOfSymbols)
         assertEquals(BarcodeReader.TextMode.PLAIN, accurate.textMode)
         assertFalse(BarcodeDecoderProfiles.javaTryHarder(ScanMode.FAST))
         assertTrue(BarcodeDecoderProfiles.javaTryHarder(ScanMode.ACCURATE))

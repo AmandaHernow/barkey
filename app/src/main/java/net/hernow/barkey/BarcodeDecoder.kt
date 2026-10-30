@@ -8,6 +8,7 @@ import com.google.zxing.BarcodeFormat as JavaBarcodeFormat
 import com.google.zxing.ChecksumException
 import com.google.zxing.DecodeHintType
 import com.google.zxing.FormatException
+import com.google.zxing.GenericMultipleBarcodeReader
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.NotFoundException
 import com.google.zxing.PlanarYUVLuminanceSource
@@ -16,6 +17,7 @@ import zxingcpp.BarcodeReader
 
 internal sealed interface DecodeOutcome {
     data class Value(val text: String) : DecodeOutcome
+    data class Values(val texts: List<String>) : DecodeOutcome
     data object NotFound : DecodeOutcome
     data object Failure : DecodeOutcome
 }
@@ -26,6 +28,7 @@ internal fun interface FrameValueDecoder<F> {
 
 internal fun interface BarcodeFrameDecoder {
     fun decode(frame: ImageProxy, mode: ScanMode): DecodeOutcome
+    fun decodeCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect? = null): DecodeOutcome = decode(frame, mode)
 }
 
 internal fun needsJavaTextFallback(rawBytes: ByteArray, text: String?): Boolean =
@@ -102,6 +105,58 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     )
 
     override fun decode(frame: ImageProxy, mode: ScanMode): DecodeOutcome = router.decode(frame, mode)
+
+    override fun decodeCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect?): DecodeOutcome {
+        if (crop != null) return decodeJavaCandidates(frame, mode, crop)
+        if (!nativeCanRead(frame)) return decodeJavaCandidates(frame, mode, null)
+        return try {
+            val reader = multiNativeReaders.getOrPut(mode) { BarcodeReader(BarcodeDecoderProfiles.nativeOptions(mode, 8)) }
+            val rawResults = reader.read(frame)
+            if (rawResults.any { result -> result.format != BarcodeReader.Format.NONE && result.error == null &&
+                    !result.bytes.isNullOrEmpty() && needsJavaTextFallback(result.bytes!!, result.text) }) {
+                return decodeJavaCandidates(frame, mode, null)
+            }
+            val results = rawResults.asSequence()
+                .filter { it.format != BarcodeReader.Format.NONE && it.error == null && !it.bytes.isNullOrEmpty() }
+                .mapNotNull { it.text?.takeIf(String::isNotEmpty) }.distinct().toList()
+            if (results.isNotEmpty()) DecodeOutcome.Values(results) else DecodeOutcome.NotFound
+        } catch (error: Throwable) {
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
+            // Native decoding remains primary. Use Java only when native is unavailable or errors.
+            decodeJavaCandidates(frame, mode, null)
+        }
+    }
+
+    private val multiNativeReaders = mutableMapOf<ScanMode, BarcodeReader>()
+
+    private fun decodeJavaCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect?): DecodeOutcome {
+      return try {
+        val plane = frame.planes.firstOrNull() ?: return DecodeOutcome.NotFound
+        val frameCrop = crop ?: frame.cropRect
+        val safeCrop = Rect(frameCrop).apply { intersect(frame.cropRect) }
+        if (safeCrop.isEmpty) return DecodeOutcome.NotFound
+        val source = PlanarYUVLuminanceSource(
+            copyLumaPlane(plane.buffer, plane.rowStride, plane.pixelStride, safeCrop),
+            safeCrop.width(), safeCrop.height(), 0, 0, safeCrop.width(), safeCrop.height(), false,
+        )
+        val oriented = rotate(source, frame.imageInfo.rotationDegrees)
+        val reader = MultiFormatReader().apply {
+            setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to BarcodeDecoderProfiles.javaFormats,
+                DecodeHintType.TRY_HARDER to BarcodeDecoderProfiles.javaTryHarder(mode)))
+        }
+        try {
+            val found = GenericMultipleBarcodeReader(reader).decodeMultiple(BinaryBitmap(HybridBinarizer(oriented)))
+                .mapNotNull { it.text.takeIf(String::isNotEmpty) }.distinct().take(8)
+            if (found.isEmpty()) DecodeOutcome.NotFound else DecodeOutcome.Values(found)
+        } catch (_: NotFoundException) { DecodeOutcome.NotFound }
+          catch (_: ChecksumException) { DecodeOutcome.NotFound }
+          catch (_: FormatException) { DecodeOutcome.NotFound }
+        finally { reader.reset() }
+      } catch (error: Throwable) {
+        if (error is VirtualMachineError || error is ThreadDeath) throw error
+        DecodeOutcome.Failure
+      }
+    }
 
     private fun createNativeDecoder(mode: ScanMode): FrameValueDecoder<ImageProxy> {
         val reader = BarcodeReader(BarcodeDecoderProfiles.nativeOptions(mode))
@@ -273,7 +328,7 @@ internal object BarcodeDecoderProfiles {
         JavaBarcodeFormat.MAXICODE,
     )
 
-    fun nativeOptions(mode: ScanMode) = BarcodeReader.Options(
+    fun nativeOptions(mode: ScanMode, maxSymbols: Int = 1) = BarcodeReader.Options(
         formats = nativeFormats,
         tryHarder = mode == ScanMode.ACCURATE,
         tryRotate = true,
@@ -281,7 +336,7 @@ internal object BarcodeDecoderProfiles {
         tryDownscale = mode == ScanMode.ACCURATE,
         tryDenoise = false,
         binarizer = BarcodeReader.Binarizer.LOCAL_AVERAGE,
-        maxNumberOfSymbols = 1,
+        maxNumberOfSymbols = maxSymbols,
         // PLAIN keeps decoded data and GS1 separators rather than HRI presentation markup.
         textMode = BarcodeReader.TextMode.PLAIN,
     )

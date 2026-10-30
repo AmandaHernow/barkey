@@ -2,6 +2,7 @@ package net.hernow.barkey
 
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import android.graphics.Rect
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Decodes CameraX frames on its single analysis worker and never retains a frame. */
@@ -11,22 +12,37 @@ internal class BarcodeFrameAnalyzer(
     private val modes: ScanModeController,
     private val decoder: BarcodeFrameDecoder,
     private val timing: DecodeTimingRecorder,
-    private val onDecoded: (sessionId: Long, cameraGeneration: Long, modeGeneration: Long, value: String) -> Unit,
-    private val onFailure: (sessionId: Long, cameraGeneration: Long, modeGeneration: Long) -> Unit,
+    private val previewEnabled: () -> Boolean = { false },
+    private val focusEnabled: () -> Boolean = { false },
+    private val scanCrop: (ImageProxy) -> Rect? = { null },
+    private val settingsGeneration: () -> Long = { 0L },
+    private val onDecoded: (sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long, values: List<String>) -> Unit,
+    private val onFailure: (sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long) -> Unit,
 ) : ImageAnalysis.Analyzer {
     private val reportedFailure = AtomicBoolean(false)
 
     override fun analyze(image: ImageProxy) {
         val snapshot = modes.snapshot()
+        val settings = settingsGeneration()
+        val candidates = previewEnabled()
+        val focused = focusEnabled()
+        val crop = scanCrop(image)
         val outcome = timing.measure {
-            FrameDecodeRunner.run(image) { frame -> decoder.decode(frame, snapshot.mode) }
+            FrameDecodeRunner.run(image) {
+                if (focused && crop == null) DecodeOutcome.NotFound
+                else if (candidates || focused) decoder.decodeCandidates(it, snapshot.mode, crop)
+                else decoder.decode(it, snapshot.mode)
+            }
         }
         when (outcome) {
-            is DecodeOutcome.Value -> onDecoded(sessionId, cameraGeneration, snapshot.generation, outcome.text)
+            is DecodeOutcome.Value -> onDecoded(sessionId, cameraGeneration, snapshot.generation, settings, listOf(outcome.text))
+            is DecodeOutcome.Values -> onDecoded(sessionId, cameraGeneration, snapshot.generation, settings, outcome.texts)
             DecodeOutcome.Failure -> if (reportedFailure.compareAndSet(false, true)) {
-                onFailure(sessionId, cameraGeneration, snapshot.generation)
+                onFailure(sessionId, cameraGeneration, snapshot.generation, settings)
             }
-            DecodeOutcome.NotFound -> Unit
+            DecodeOutcome.NotFound -> if (candidates) {
+                onDecoded(sessionId, cameraGeneration, snapshot.generation, settings, emptyList())
+            }
         }
     }
 }

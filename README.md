@@ -46,6 +46,17 @@ Version 1.0 is the first BarKey-branded development version. Project-owner testi
 - Support the Android managed configuration `scan_suffix` with `none`, `enter` and `tab` options; the default is `none`.
 - Provide a capability suitable for private enterprise deployment and management through Microsoft Intune. The deployment workflow remains to be validated.
 
+## Optional extended scanning functions
+
+The `extended-functions` development branch adds four optional controls beneath the scanner preview. They are being developed and have not been included in a public release:
+
+- **Preview** shows distinct detected values so you can tap the barcode you want, useful when several codes are close together. Automatic insertion pauses while Preview is on.
+- **Focus** adds a movable square that restricts decoding to the selected area, useful for labels with neighbouring codes. It is separate from tapping the preview to request camera autofocus.
+- **Keyboard** replaces the camera with a Swedish manual keyboard for a damaged or missing barcode. Tap **Scanner** to return; this does not switch to Gboard or another Android keyboard.
+- **Single Scan** accepts one successfully inserted barcode per text field and allows scanning again after moving to another field. It also works with a selected Preview suggestion.
+
+Preview and Focus can be combined to narrow the scan area and then choose a detected value. Single Scan can be added to prevent another insertion into that field. Fast and Accurate remain independent scanning modes.
+
 The core scanner and keyboard workflow has been verified on a physical Android tablet. Camera behaviour, field navigation, accessibility, compatibility across other devices and enterprise policy interactions still need broader validation.
 
 The GitHub Pages website source is in [`docs/`](docs/).
@@ -58,7 +69,7 @@ Drag the 40dp grab mark at the top of BarKey upward to make the docked keyboard 
 
 BarKey is free to use. It contains no advertisements, analytics, telemetry, user tracking, accounts or registration. The source manifest requests camera access and removes Internet and network-state permissions. Camera frames and barcode decoding are handled locally. Scans are inserted into the destination field without using the clipboard, and the app does not maintain barcode history or persist scanned values.
 
-A decoded value exists temporarily in memory while it is processed and delivered. Duplicate suppression retains only the most recently accepted value during the active input session, for comparison within a one-second window. The guarded one-level Undo feature may temporarily retain the most recent inserted value and bounded surrounding cursor context in memory. That context is cleared when the relevant field/session changes or the keyboard is hidden or switched away from. These values are not written to logs or persistent storage. This description reflects the app implementation and is not a broader security certification.
+A decoded value exists temporarily in memory while it is processed and delivered. Preview holds only distinct values currently detected so they can be selected, then expires each suggestion shortly after it is no longer detected; it does not keep a scan history. Duplicate suppression retains only the most recently accepted value during the active input session, for comparison within a one-second window. The guarded one-level Undo feature may temporarily retain the most recent inserted value and bounded surrounding cursor context in memory. That context is cleared when the relevant field/session changes or the keyboard is hidden or switched away from. These values are not written to logs or persistent storage. This description reflects the app implementation and is not a broader security certification.
 
 ## Installation and first use
 
