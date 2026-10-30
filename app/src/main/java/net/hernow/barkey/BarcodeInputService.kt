@@ -130,7 +130,7 @@ class BarcodeInputService : InputMethodService() {
     private var torchButton: ImageButton? = null
     private var activeCamera: Camera? = null
     private var developerSignature: TextView? = null
-    private var themedButtons: List<Button> = emptyList()
+    private var themedButtons: List<View> = emptyList()
     private var toolbarButtons: List<Button> = emptyList()
     private var resizeHandleView: View? = null
     private var measuredMinimumImeHeightPx: Int? = null
@@ -607,14 +607,12 @@ class BarcodeInputService : InputMethodService() {
         }
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
-        val switchButton = Button(this).apply {
-            text = ""
+        val switchButton = ImageButton(this).apply {
+            setImageResource(R.drawable.ic_keyboard_switch)
             minWidth = dp(48)
             minHeight = dp(48)
-            gravity = Gravity.CENTER
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(0, 0, 0, 0)
-            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_keyboard_switch, 0, 0, 0)
-            compoundDrawableTintList = ContextCompat.getColorStateList(this@BarcodeInputService, R.color.keyboard_button_text)
             contentDescription = getString(R.string.switch_keyboard)
             isFocusable = false
             isFocusableInTouchMode = false
@@ -789,8 +787,16 @@ class BarcodeInputService : InputMethodService() {
         undoButton = undo
         resizeHandleView = resizeHandle
         toolbarButtons = editingButtons + spaceButton
-        themedButtons = toolbarButtons + listOf(modeButton, switchButton, hideButton, enableCamera,
-            previewButton, focusButton, singleButton)
+        themedButtons = buildList<View> {
+            addAll(toolbarButtons)
+            add(modeButton)
+            add(switchButton)
+            add(hideButton)
+            add(enableCamera)
+            add(previewButton)
+            add(focusButton)
+            add(singleButton)
+        }
         applyKeyboardTheme()
         renderExtendedControls()
         refreshUndoButton()
@@ -1154,7 +1160,13 @@ class BarcodeInputService : InputMethodService() {
             setTextColor(primaryText)
             setBackgroundResource(R.drawable.keyboard_status_background)
         }
-        themedButtons.forEach { styleKeyboardButton(it, if (it in toolbarButtons) 13f else 14f) }
+        themedButtons.forEach { control ->
+            when (control) {
+                is ImageButton -> styleKeyboardImageButton(control)
+                is Button -> styleKeyboardButton(control, if (control in toolbarButtons) 13f else 14f)
+                else -> Unit
+            }
+        }
         scanModeButton?.let(::styleScanModeButton)
         renderExtendedControls()
         torchButton?.apply {
@@ -1179,6 +1191,15 @@ class BarcodeInputService : InputMethodService() {
         button.setTextColor(ContextCompat.getColorStateList(this, R.color.keyboard_button_text))
         button.setAllCaps(false)
         button.textSize = textSizeSp
+        button.elevation = 0f
+        button.stateListAnimator = null
+    }
+
+    private fun styleKeyboardImageButton(button: ImageButton) {
+        button.setBackgroundResource(R.drawable.keyboard_button_background)
+        button.backgroundTintList = null
+        button.imageTintList = ContextCompat.getColorStateList(this, R.color.keyboard_button_text)
+        button.scaleType = ImageView.ScaleType.CENTER_INSIDE
         button.elevation = 0f
         button.stateListAnimator = null
     }
