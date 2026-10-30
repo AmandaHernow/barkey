@@ -23,6 +23,12 @@ class ExtendedScanStateTest {
         assertEquals(listOf("1", "2"), PreviewCandidateState(maxCandidates = 2).update(listOf("1", "2", "3"), 0))
     }
 
+    @Test fun previewExpiresBeforeApplyingCapacityLimit() {
+        val state = PreviewCandidateState(expiryMillis = 100, maxCandidates = 2)
+        assertEquals(listOf("old-a", "old-b"), state.update(listOf("old-a", "old-b"), 0))
+        assertEquals(listOf("new"), state.update(listOf("new"), 101))
+    }
+
     @Test fun previewKeepsCompleteLongValuesAndRejectsSelectionsAfterClearOrSessionChange() {
         val state = PreviewCandidateState()
         val longValue = "A".repeat(500)
@@ -70,10 +76,11 @@ class ExtendedScanStateTest {
                 val r = rect.right / previewWidth
                 val b = rect.bottom / previewHeight
                 when (rotation) {
-                    0 -> { rect.left = l * cropWidth; rect.top = t * cropHeight; rect.right = r * cropWidth; rect.bottom = b * cropHeight }
-                    90 -> { rect.left = t * cropWidth; rect.top = (1f - r) * cropHeight; rect.right = b * cropWidth; rect.bottom = (1f - l) * cropHeight }
-                    180 -> { rect.left = (1f - r) * cropWidth; rect.top = (1f - b) * cropHeight; rect.right = (1f - l) * cropWidth; rect.bottom = (1f - t) * cropHeight }
-                    270 -> { rect.left = (1f - b) * cropWidth; rect.top = l * cropHeight; rect.right = (1f - t) * cropWidth; rect.bottom = r * cropHeight }
+                    0 -> FocusRegionGeometry.RectF(l * cropWidth, t * cropHeight, r * cropWidth, b * cropHeight)
+                    90 -> FocusRegionGeometry.RectF(t * cropWidth, (1f - r) * cropHeight, b * cropWidth, (1f - l) * cropHeight)
+                    180 -> FocusRegionGeometry.RectF((1f - r) * cropWidth, (1f - b) * cropHeight, (1f - l) * cropWidth, (1f - t) * cropHeight)
+                    270 -> FocusRegionGeometry.RectF((1f - b) * cropWidth, l * cropHeight, (1f - t) * cropWidth, r * cropHeight)
+                    else -> error("Unsupported test rotation $rotation")
                 }
             }
             assertEquals("rotation $rotation", expected[rotation], mapped)
@@ -87,7 +94,7 @@ class ExtendedScanStateTest {
         ) { rect ->
             // Different preview/analysis aspect ratios and a PreviewView resize are represented
             // by CameraX's current transform; its result must remain crop-local.
-            rect.left *= 4f; rect.top *= 2f; rect.right *= 4f; rect.bottom *= 2f
+            FocusRegionGeometry.RectF(rect.left * 4f, rect.top * 2f, rect.right * 4f, rect.bottom * 2f)
         }
         assertEquals(FocusRegionGeometry.ImageRect(20, 30, 140, 130), mapped)
         assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
@@ -95,16 +102,16 @@ class ExtendedScanStateTest {
         ) { throw IllegalStateException("stale transform") })
         assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
             FocusRegionGeometry.RectF(0f, 0f, 0f, 10f), crop,
-        ) {})
+        ) { it })
         assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
             FocusRegionGeometry.RectF(0f, 0f, 10f, 10f), FocusRegionGeometry.ImageRect(4, 4, 4, 9),
-        ) {})
+        ) { it })
         assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
             FocusRegionGeometry.RectF(0f, 0f, 10f, 10f), crop,
-        ) { rect -> rect.left = 500f; rect.right = 600f })
+        ) { FocusRegionGeometry.RectF(500f, it.top, 600f, it.bottom) })
         assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
             FocusRegionGeometry.RectF(0f, 0f, 10f, 10f), crop,
-        ) { it.left = Float.NaN })
+        ) { FocusRegionGeometry.RectF(Float.NaN, it.top, it.right, it.bottom) })
     }
 
     @Test fun focusSquareClampsAtEachPreviewEdgeAndTracksResizedPreviewCoordinates() {
@@ -156,12 +163,23 @@ class ExtendedScanStateTest {
         assertTrue(gate.isConsumed())
     }
 
-    @Test fun singleScanInputLifecycleResetStartsASeparateEditorSession() {
+    @Test fun singleScanInputSessionRestartKeepsStableFieldAllowanceAndReleasesConnectionReference() {
         val gate = SingleScanGate()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 31))
         assertTrue(gate.consume())
-        gate.reset() // InputMethodService.onFinishInput ends the prior session.
-        gate.moveTo(EditorFieldKey(Any(), "example.app", 31))
+        gate.finishInput() // Simulate a host finishing and reopening this same identifiable field.
+        assertFalse(gate.moveTo(EditorFieldKey(Any(), "example.app", 31)))
+        assertTrue(gate.isConsumed())
+        assertTrue(gate.moveTo(EditorFieldKey(Any(), "example.app", 32)))
+        assertFalse(gate.isConsumed())
+    }
+
+    @Test fun singleScanWithMissingFieldIdResetsAtSessionBoundaryBecauseIdentityIsUnavailable() {
+        val gate = SingleScanGate()
+        gate.moveTo(EditorFieldKey(Any(), "example.app", 0))
+        assertTrue(gate.consume())
+        gate.finishInput()
+        gate.moveTo(EditorFieldKey(Any(), "example.app", 0))
         assertFalse(gate.isConsumed())
     }
 

@@ -933,7 +933,10 @@ class BarcodeInputService : InputMethodService() {
         clearPendingResults()
         inputEditor.clearUndo()
         sessionGate.endSession()
-        singleScanGate.reset()
+        // Preserve a recognisable field's allowance through an editor handoff while dropping its
+        // old InputConnection; onStartInput releases it if Android reports a different field.
+        // ID-less editors cannot be matched safely across finished input sessions.
+        singleScanGate.finishInput()
         activeEditorField = null
         currentSessionId = 0L
         super.onFinishInput()
@@ -1301,10 +1304,9 @@ class BarcodeInputService : InputMethodService() {
             // ViewPort and PreviewView scaling are encoded by the two current OutputTransforms.
             CoordinateTransform(previewTransform, imageProxyTransformFactory.getOutputTransform(image))
                 .mapRect(cameraXRect)
-            cropLocalRect.left = cameraXRect.left
-            cropLocalRect.top = cameraXRect.top
-            cropLocalRect.right = cameraXRect.right
-            cropLocalRect.bottom = cameraXRect.bottom
+            FocusRegionGeometry.RectF(
+                cameraXRect.left, cameraXRect.top, cameraXRect.right, cameraXRect.bottom,
+            )
         } ?: return null
         return Rect(mappedCrop.left, mappedCrop.top, mappedCrop.right, mappedCrop.bottom)
     }

@@ -12,10 +12,10 @@ internal class PreviewCandidateState(
 
     @Synchronized
     fun update(values: Collection<String>, nowMillis: Long): List<String> {
+        expire(nowMillis)
         values.asSequence().filter(String::isNotEmpty).distinct().forEach { value ->
             if (seenAt.containsKey(value) || seenAt.size < maxCandidates.coerceAtLeast(1)) seenAt[value] = nowMillis
         }
-        expire(nowMillis)
         return seenAt.keys.toList()
     }
 
@@ -55,11 +55,14 @@ internal object PreviewDeliveryPolicy {
 }
 
 /** A field key deliberately contains no field contents. */
-internal data class EditorFieldKey(val connection: Any, val packageName: String?, val fieldId: Int) {
+internal data class EditorFieldKey(val connection: Any?, val packageName: String?, val fieldId: Int) {
     /** Android field IDs are strongest when supplied; connection identity is the fallback for ID 0. */
-    fun identifiesSameField(next: EditorFieldKey): Boolean = packageName == next.packageName &&
-        (if (fieldId > 0 && next.fieldId > 0) fieldId == next.fieldId
-        else fieldId == next.fieldId && connection === next.connection)
+    fun identifiesSameField(next: EditorFieldKey): Boolean =
+        if (fieldId > 0 && next.fieldId > 0 && !packageName.isNullOrEmpty() && packageName == next.packageName) {
+            fieldId == next.fieldId
+        } else {
+            fieldId == next.fieldId && connection != null && connection === next.connection
+        }
 }
 
 /** One accepted insertion per editor identity; input-view recreation does not reset it. */
@@ -81,6 +84,22 @@ internal class SingleScanGate {
         consumed = true
         return true
     }
+    /**
+     * Ends an IME input session without dropping a recognisable field's allowance. Keep only the
+     * host package and Android field ID; release the old InputConnection reference. If Android
+     * supplied no stable field ID, the allowance cannot safely cross the session boundary.
+     */
+    @Synchronized
+    fun finishInput() {
+        val previous = field ?: return
+        if (previous.fieldId > 0 && !previous.packageName.isNullOrEmpty()) {
+            field = previous.copy(connection = null)
+        } else {
+            field = null
+            consumed = false
+        }
+    }
+
     @Synchronized fun reset() { field = null; consumed = false }
 }
 
@@ -99,12 +118,11 @@ internal object FocusRegionGeometry {
     fun mapPreviewRectToImageCrop(
         previewRect: RectF,
         crop: ImageRect,
-        mapToCropLocal: (RectF) -> Unit,
+        mapToCropLocal: (RectF) -> RectF,
     ): ImageRect? {
         if (crop.isEmpty || !previewRect.isFiniteAndNonEmpty()) return null
-        val mapped = previewRect.copy()
-        try {
-            mapToCropLocal(mapped)
+        val mapped = try {
+            mapToCropLocal(previewRect.copy())
         } catch (_: RuntimeException) {
             return null
         }
