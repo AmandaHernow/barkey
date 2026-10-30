@@ -177,4 +177,96 @@ class ResponsiveKeyboardLayoutPolicyTest {
         assertEquals(1, ResponsiveKeyboardLayoutPolicy.toolbarColumns(120, 3f))
         assertEquals(6, ResponsiveKeyboardLayoutPolicy.toolbarColumns(2_400, 2f))
     }
+
+    @Test fun toolbarLayoutCoversPhoneAndTabletWidthsWithoutWideEditingButtons() {
+        val narrowPhone = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(264, 2.5f), density = 2.5f, fontScale = 1f,
+        )
+        assertEquals(4, narrowPhone.editingColumns)
+        assertEquals(dp(264, 2.5f), narrowPhone.controlGroupWidthPx)
+        assertEquals(dp(264, 2.5f), narrowPhone.editingRowWidthPx)
+        assertEquals(dp(176, 2.5f), ResponsiveKeyboardLayoutPolicy.toolbarRowWidth(narrowPhone, 2))
+
+        val normalPhone = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(374, 3f), density = 3f, fontScale = 1f,
+        )
+        assertEquals(6, normalPhone.editingColumns)
+        assertEquals(dp(374, 3f), normalPhone.editingRowWidthPx)
+
+        val landscapePhone = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(820, 2f), density = 2f, fontScale = 1f,
+        )
+        assertEquals(6, landscapePhone.editingColumns)
+        assertEquals(dp(528, 2f), landscapePhone.editingRowWidthPx)
+
+        val tabletLandscape = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(1_260, 2f), density = 2f, fontScale = 1f,
+        )
+        assertEquals(dp(760, 2f), tabletLandscape.controlGroupWidthPx)
+        assertEquals(dp(760, 2f), tabletLandscape.bottomRowWidthPx)
+        assertEquals(dp(528, 2f), tabletLandscape.editingRowWidthPx)
+        assertEquals(6, tabletLandscape.editingColumns)
+
+        val tabletPortrait = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(784, 2f), density = 2f, fontScale = 1f,
+        )
+        assertEquals(dp(760, 2f), tabletPortrait.controlGroupWidthPx)
+        assertEquals(tabletLandscape, tabletPortrait)
+    }
+
+    @Test fun largerFontScaleWrapsEditingButtonsBeforeLabelsBecomeTooNarrow() {
+        val defaultText = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(374, 3f), density = 3f, fontScale = 1f,
+        )
+        val largeText = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+            availableWidthPx = dp(374, 3f), density = 3f, fontScale = 1.5f,
+        )
+        assertEquals(6, defaultText.editingColumns)
+        assertEquals(4, largeText.editingColumns)
+        assertEquals(dp(374, 3f), largeText.editingRowWidthPx)
+        assertEquals(dp(260, 3f), ResponsiveKeyboardLayoutPolicy.toolbarRowWidth(largeText, 2))
+    }
+
+    @Test fun repeatedToolbarMeasurementsProduceTheSamePlanAndDoNotRequireRebuildingRows() {
+        val plans = List(10) {
+            ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(
+                availableWidthPx = dp(1_260, 2f), density = 2f, fontScale = 1.25f,
+            )
+        }
+        assertTrue(plans.all { it == plans.first() })
+        assertEquals(6, plans.first().editingColumns)
+        assertEquals(dp(760, 2f), plans.first().bottomRowWidthPx)
+    }
+
+    @Test fun compactEditingAndBottomRowsReduceMinimumHeightWithoutReducingPreviewFloor() {
+        val previousRows = ResponsiveKeyboardLayoutPolicy.InputViewContentHeights(
+            permanentContentHeightPx = 180,
+            scrollableControlsHeightPx = 52 * 3,
+        )
+        val compactRows = ResponsiveKeyboardLayoutPolicy.InputViewContentHeights(
+            permanentContentHeightPx = 180,
+            scrollableControlsHeightPx = 52 * 2,
+        )
+        val previousMinimum = ResponsiveKeyboardLayoutPolicy.minimumInputViewHeight(previousRows, 120)
+        val compactMinimum = ResponsiveKeyboardLayoutPolicy.minimumInputViewHeight(compactRows, 120)
+        assertEquals(52, previousMinimum - compactMinimum)
+
+        val bounds = ResponsiveKeyboardLayoutPolicy.heightBounds(
+            usableDisplayHeightPx = 2_000,
+            measuredFixedContentHeightPx = compactRows.fixedContentHeightPx,
+            minimumPreviewHeightPx = 120,
+            leaveApplicationVisiblePx = 300,
+        )
+        val compactPlan = ResponsiveKeyboardLayoutPolicy.inputViewLayoutPlan(
+            requestedInputViewHeightPx = compactMinimum,
+            bounds = bounds,
+            content = compactRows,
+            minimumPreviewHeightPx = 120,
+            automaticPreviewMaximumPx = 280,
+            manuallyResized = false,
+        )
+        assertEquals(120, compactPlan.previewHeightPx)
+    }
+
+    private fun dp(value: Int, density: Float): Int = (value * density).toInt()
 }

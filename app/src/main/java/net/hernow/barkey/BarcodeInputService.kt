@@ -168,7 +168,7 @@ class BarcodeInputService : InputMethodService() {
     override fun onCreateInputView(): View {
         removeKeyboardLayoutListener()
         val density = resources.displayMetrics.density
-        fun toolbarButtonMinWidthDp() = (56f * resources.configuration.fontScale).toInt().coerceAtLeast(56)
+        val fontScale = resources.configuration.fontScale
         fun dp(value: Int) = (value * density).toInt()
 
         val root = LinearLayout(this).apply {
@@ -319,11 +319,13 @@ class BarcodeInputService : InputMethodService() {
         fun modeToggle(label: String, description: String, action: () -> Unit) = Button(this).apply {
             text = label
             contentDescription = description
-            minHeight = dp(44)
-            minWidth = dp(76)
+            minHeight = dp(48)
+            minWidth = dp((76f * fontScale).toInt().coerceAtLeast(76))
             isAllCaps = false
             isFocusable = false
             isFocusableInTouchMode = false
+            maxLines = 2
+            isSingleLine = false
             setPadding(dp(5), 0, dp(5), 0)
             setOnClickListener { action() }
         }
@@ -337,7 +339,9 @@ class BarcodeInputService : InputMethodService() {
         }
         val singleButton = modeToggle(getString(R.string.single_scan_toggle), getString(R.string.single_scan_accessibility)) { toggleSingleScan() }
         listOf(previewButton, focusButton, singleButton).forEach { button ->
-            modeControls.addView(button, LinearLayout.LayoutParams(dp(96), dp(44)).apply { setMargins(dp(1), 0, dp(1), 0) })
+            modeControls.addView(button, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dp(1), 0, dp(1), 0)
+            })
         }
         val candidates = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -350,7 +354,7 @@ class BarcodeInputService : InputMethodService() {
         }
         val modeControlsScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
-            addView(modeControls, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(46)))
+            addView(modeControls, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
 
         var pendingFocusPoint: Pair<Float, Float>? = null
@@ -605,16 +609,20 @@ class BarcodeInputService : InputMethodService() {
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         val switchButton = Button(this).apply {
-            text = getString(R.string.switch_keyboard)
-            minHeight = dp(52)
+            text = getString(R.string.switch_keyboard_compact)
+            minWidth = dp(64)
+            minHeight = dp(48)
+            setPadding(dp(4), 0, dp(4), 0)
             contentDescription = getString(R.string.switch_keyboard)
             isFocusable = false
             isFocusableInTouchMode = false
             setOnClickListener { switchKeyboard() }
         }
         val hideButton = Button(this).apply {
-            text = getString(R.string.hide_keyboard_label)
-            minHeight = dp(52)
+            text = getString(R.string.hide_keyboard_compact)
+            minWidth = dp(56)
+            minHeight = dp(48)
+            setPadding(dp(4), 0, dp(4), 0)
             contentDescription = getString(R.string.hide_keyboard)
             isFocusable = false
             isFocusableInTouchMode = false
@@ -627,11 +635,15 @@ class BarcodeInputService : InputMethodService() {
         }
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(switchButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                setMargins(dp(3), dp(2), dp(3), dp(2))
+            gravity = Gravity.CENTER_VERTICAL
+            addView(spaceButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(dp(2), dp(2), dp(2), dp(2))
             })
-            addView(hideButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                setMargins(dp(3), dp(2), dp(3), dp(2))
+            addView(hideButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dp(2), dp(2), dp(2), dp(2))
+            })
+            addView(switchButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dp(2), dp(2), dp(2), dp(2))
             })
         }
         val developerSignature = TextView(this).apply {
@@ -658,7 +670,7 @@ class BarcodeInputService : InputMethodService() {
         root.addView(resizeHandle, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)))
         root.addView(frame, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, frameHeight))
         controls.addView(statusRow, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-        controls.addView(modeControlsScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(46)))
+        controls.addView(modeControlsScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         controls.addView(candidatesScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         controls.addView(enableCamera, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         controls.addView(toolbar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
@@ -713,7 +725,7 @@ class BarcodeInputService : InputMethodService() {
             root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
         ) - root.paddingLeft - root.paddingRight
         val initialAvailableWidth = initialContentWidth.coerceAtLeast(1)
-        rebuildToolbarRows(toolbar, editingButtons, spaceButton, initialAvailableWidth, density, toolbarButtonMinWidthDp())
+        rebuildToolbarRows(toolbar, editingButtons, initialAvailableWidth, density, fontScale, actions)
         val initialContentHeights = measureInputViewContentHeights(
             root, resizeHandle, statusRow, modeControlsScroll, candidatesScroll, enableCamera, toolbar, actions, developerSignature,
             initialAvailableWidth,
@@ -739,7 +751,7 @@ class BarcodeInputService : InputMethodService() {
             val measuredWidth = (
                 root.width - root.paddingLeft - root.paddingRight
             ).coerceAtLeast(1)
-            rebuildToolbarRows(toolbar, editingButtons, spaceButton, measuredWidth, density, toolbarButtonMinWidthDp())
+            rebuildToolbarRows(toolbar, editingButtons, measuredWidth, density, fontScale, actions)
             measuredInputViewContentHeights = measureInputViewContentHeights(
                 root, resizeHandle, statusRow, modeControlsScroll, candidatesScroll, enableCamera, toolbar, actions, developerSignature, measuredWidth,
             )
@@ -822,12 +834,16 @@ class BarcodeInputService : InputMethodService() {
     ): ResponsiveKeyboardLayoutPolicy.InputViewContentHeights {
         fun measuredHeight(view: View): Int {
             if (view.visibility != View.VISIBLE) return 0
+            val layoutParams = view.layoutParams as? ViewGroup.MarginLayoutParams
+            val measuredWidth = layoutParams?.width
+                ?.takeIf { it > 0 }
+                ?.coerceAtMost(contentWidthPx)
+                ?: contentWidthPx
             view.measure(
-                View.MeasureSpec.makeMeasureSpec(contentWidthPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(measuredWidth, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
             )
-            val margins = (view.layoutParams as? ViewGroup.MarginLayoutParams)
-                ?.let { it.topMargin + it.bottomMargin } ?: 0
+            val margins = layoutParams?.let { it.topMargin + it.bottomMargin } ?: 0
             return view.measuredHeight + margins
         }
 
@@ -1066,34 +1082,39 @@ class BarcodeInputService : InputMethodService() {
     private fun rebuildToolbarRows(
         toolbar: LinearLayout,
         buttons: List<Button>,
-        spaceButton: Button,
         widthPx: Int,
         density: Float,
-        buttonMinimumWidthDp: Int,
+        fontScale: Float,
+        actions: LinearLayout,
     ) {
-        val columns = ResponsiveKeyboardLayoutPolicy.toolbarColumns(widthPx, density, buttonMinimumWidthDp)
-        if (toolbar.tag == columns) return
-        toolbar.tag = columns
+        val plan = ResponsiveKeyboardLayoutPolicy.toolbarLayoutPlan(widthPx, density, fontScale)
+        fun setCenteredWidth(view: View, width: Int) {
+            val params = view.layoutParams as? LinearLayout.LayoutParams ?: return
+            if (params.width == width && params.gravity == Gravity.CENTER_HORIZONTAL) return
+            params.width = width
+            params.gravity = Gravity.CENTER_HORIZONTAL
+            view.layoutParams = params
+        }
+        setCenteredWidth(toolbar, plan.controlGroupWidthPx)
+        setCenteredWidth(actions, plan.bottomRowWidthPx)
+        if (toolbar.tag == plan) return
+        toolbar.tag = plan
         toolbar.removeAllViews()
-        buttons.chunked(columns).forEach { rowButtons ->
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            val emptySlots = columns - rowButtons.size
-            if (emptySlots > 0) {
-                row.addView(View(this), LinearLayout.LayoutParams(0, 1, emptySlots / 2f))
+        buttons.chunked(plan.editingColumns).forEach { rowButtons ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
             }
             rowButtons.forEach { button ->
                 row.addView(button, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     setMargins(dp(2), dp(2), dp(2), dp(2))
                 })
             }
-            if (emptySlots > 0) {
-                row.addView(View(this), LinearLayout.LayoutParams(0, 1, emptySlots / 2f))
-            }
-            toolbar.addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            toolbar.addView(row, LinearLayout.LayoutParams(
+                ResponsiveKeyboardLayoutPolicy.toolbarRowWidth(plan, rowButtons.size),
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { gravity = Gravity.CENTER_HORIZONTAL })
         }
-        toolbar.addView(spaceButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-            setMargins(dp(2), dp(2), dp(2), dp(2))
-        })
     }
 
     private fun removeKeyboardLayoutListener() {

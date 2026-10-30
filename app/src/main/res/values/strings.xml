@@ -100,8 +100,10 @@
     <string name="torch_activation_failed">Torch could not be changed. Try again.</string>
     <string name="scanner_decoder_unavailable">Barcode decoding is unavailable. Reopen the scanner keyboard to try again.</string>
     <string name="switch_keyboard">Switch Keyboard</string>
+    <string name="switch_keyboard_compact">Switch</string>
     <string name="keyboard_switch_unavailable">Keyboard switching is unavailable. Use the Android keyboard picker.</string>
     <string name="hide_keyboard_label">Hide Keyboard</string>
+    <string name="hide_keyboard_compact">Hide</string>
     <string name="hide_keyboard">Hide scanner keyboard</string>
     <string name="undo_short">Undo</string>
     <string name="undo_scan">Undo latest safely verified BarKey text insertion</string>
