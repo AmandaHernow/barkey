@@ -27,9 +27,9 @@ BarKey is free for private, personal use. Company and workplace use require my p
     <th>Preview suggestions</th>
   </tr>
   <tr>
-    <td><img src="first-run.jpg" alt="BarKey setup guide showing keyboard setup and camera permission" width="220"></td>
-    <td><img src="focus.jpg" alt="BarKey camera preview with the Focus scan area enabled" width="220"></td>
-    <td><img src="preview.jpg" alt="BarKey camera preview with selectable barcode suggestions" width="220"></td>
+    <td><img src="artwork/first-run.jpg" alt="BarKey setup guide showing keyboard setup and camera permission" width="220"></td>
+    <td><img src="artwork/focus.jpg" alt="BarKey camera preview with the Focus scan area enabled" width="220"></td>
+    <td><img src="artwork/preview.jpg" alt="BarKey camera preview with selectable barcode suggestions" width="220"></td>
   </tr>
 </table>
 
