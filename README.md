@@ -12,7 +12,7 @@ BarKey replaces the on-screen keyboard with a camera scanner. It reads barcodes 
 - Inserts a scanned value at the cursor in the active text field.
 - Offers **Fast** and **Accurate** scan modes. Accurate makes a more thorough attempt and can take longer.
 - Lets you tap the camera preview to request focus and exposure at that point. A torch control appears when the camera supports flash.
-- Provides **Preview**, **Focus** and **Single Scan** options. Preview lets you choose from up to eight detected values. Focus limits scanning to a movable, resizable area. Single Scan allows one successful insertion per recognised text field. Focus works with either option; Preview and Single Scan cannot be used together.
+- Provides **Preview**, **Focus** and **Single Scan** options. Preview lets you choose from up to eight detected values. Focus limits scanning to a movable, resizable area and uses the selected scan mode. Keep the whole code and a little clear space around it inside the box; enlarge the area if a code is missed. Single Scan allows one successful insertion per recognised text field. Focus works with either option; Preview and Single Scan cannot be used together.
 - Includes Undo for up to 20 recent scans or Space insertions when the current text field can be checked safely. Undo history stays in memory and is lost when BarKey restarts. Undoing a Single Scan in an otherwise empty field makes that field available for another scan.
 - Includes Backspace, Space, Left, Right, Tab, Enter, keyboard switching and hide controls. The receiving app determines how navigation and editor actions behave.
 - Supports portrait and landscape layouts, system light and dark appearance, and a resizable docked keyboard.
