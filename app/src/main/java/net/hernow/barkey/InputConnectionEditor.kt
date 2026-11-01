@@ -152,6 +152,13 @@ internal class InputConnectionEditor {
     /** Reports whether a saved insertion context is still present. */
     fun hasUndoRecord(): Boolean = undoRecords.isNotEmpty()
 
+    /** Checks emptiness locally without retaining any editor text. */
+    fun isFieldEmpty(connection: EditorConnection?): Boolean {
+        val snapshot = connection?.cursorSnapshot(1, 1) ?: return false
+        return snapshot.selectionIsKnown && snapshot.selectionStart == snapshot.selectionEnd &&
+            snapshot.textBeforeCursor == "" && snapshot.textAfterCursor == ""
+    }
+
     /** Deletes a selection or one code point, using key events when editor queries are unavailable. */
     fun backspace(connection: EditorConnection): BackspaceResult {
         val snapshot = connection.cursorSnapshot(CONTEXT_CHARS, CONTEXT_CHARS)

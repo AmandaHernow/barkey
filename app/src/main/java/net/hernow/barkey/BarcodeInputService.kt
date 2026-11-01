@@ -382,6 +382,7 @@ class BarcodeInputService : InputMethodService() {
             pendingFocusPoint = null
             requestFocusAt(preview, point.first, point.second)
         }
+        // Camera taps only meter the lens; the preview cannot take input focus from the host field.
         preview.setOnTouchListener { view, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -2271,8 +2272,15 @@ class BarcodeInputService : InputMethodService() {
             Log.w(TAG, "Scanner undo was rejected (${error.javaClass.simpleName})")
             false
         }
-        if (undone) setStatus(R.string.scan_undo_complete)
-        else setStatus(R.string.scan_undo_unavailable)
+        if (undone) {
+            val editor = currentInputConnection?.let(::AndroidEditorConnection)
+            if (singleScanEnabled && singleScanGate.rearmAfterUndo(inputEditor.isFieldEmpty(editor))) {
+                renderExtendedControls()
+            }
+            setStatus(R.string.scan_undo_complete)
+        } else {
+            setStatus(R.string.scan_undo_unavailable)
+        }
         refreshUndoButton()
     }
 

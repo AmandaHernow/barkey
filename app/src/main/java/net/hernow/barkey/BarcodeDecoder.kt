@@ -137,6 +137,7 @@ private class NativeFallbackForFrame : RuntimeException()
 internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     // CameraX runs analysis on one serial executor, so each mode can reuse its readers.
     private val multiNativeReaders = mutableMapOf<ScanMode, BarcodeReader>()
+    private val nativeCropReaders = mutableMapOf<Pair<ScanMode, Boolean>, BarcodeReader>()
     private val javaReaders = mutableMapOf<Pair<ScanMode, Boolean>, MultiFormatReader>()
     private val router = DecoderRouter(
         nativeFrameSupported = ::nativeCanRead,
@@ -147,9 +148,9 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     /** Decodes one value using the standard native-first route. */
     override fun decode(frame: ImageProxy, mode: ScanMode): DecodeOutcome = router.decode(frame, mode)
 
-    /** Finds several values for Preview, using Java when a crop is requested. */
+    /** Finds several values for Preview, including inside Focus when both are enabled. */
     override fun decodeCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect?): DecodeOutcome {
-        if (crop != null) return decodeJavaCrop(frame, mode, crop, multiple = true)
+        if (crop != null) return decodeNativeCrop(frame, mode, crop, multiple = true)
         if (!nativeCanRead(frame)) return decodeJavaCrop(frame, mode, null, multiple = true)
         return try {
             val reader = multiNativeReaders.getOrPut(mode) {
@@ -171,9 +172,50 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
         }
     }
 
-    /** Keeps Focus to one value inside the selected crop. */
-    override fun decodeFocused(frame: ImageProxy, mode: ScanMode, crop: Rect): DecodeOutcome =
-        decodeJavaCrop(frame, mode, crop, multiple = false)
+    /** Uses the same native reader and mode options as normal scans, limited to Focus bounds. */
+    override fun decodeFocused(frame: ImageProxy, mode: ScanMode, crop: Rect): DecodeOutcome {
+        return decodeNativeCrop(frame, mode, crop, multiple = false)
+    }
+
+    /** Temporarily applies a safe crop so the native reader can use the selected scan mode. */
+    private fun decodeNativeCrop(frame: ImageProxy, mode: ScanMode, crop: Rect, multiple: Boolean): DecodeOutcome {
+        if (!nativeCanRead(frame)) return decodeJavaCrop(frame, mode, crop, multiple)
+        val frameCrop = Rect(frame.cropRect)
+        val focusedCrop = Rect(crop)
+        if (!focusedCrop.intersect(frameCrop) || focusedCrop.isEmpty) return DecodeOutcome.NotFound
+        val reader = try {
+            nativeCropReaders.getOrPut(mode to multiple) {
+                BarcodeReader(BarcodeDecoderProfiles.nativeOptions(mode, if (multiple) MAX_PREVIEW_CANDIDATES else 1))
+            }
+        } catch (error: Throwable) {
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
+            return decodeJavaCrop(frame, mode, focusedCrop, multiple)
+        }
+
+        return try {
+            frame.setCropRect(focusedCrop)
+            val results = reader.read(frame).filter { candidate ->
+                candidate.format != BarcodeReader.Format.NONE && candidate.error == null &&
+                    candidate.bytes?.isNotEmpty() == true
+            }
+            if (results.any { result -> result.bytes?.let { needsJavaTextFallback(it, result.text) } == true }) {
+                decodeJavaCrop(frame, mode, focusedCrop, multiple)
+            } else if (multiple) {
+                val values = results.asSequence().mapNotNull { it.text?.takeIf(String::isNotEmpty) }
+                    .distinct().take(MAX_PREVIEW_CANDIDATES).toList()
+                if (values.isEmpty()) DecodeOutcome.NotFound else DecodeOutcome.Values(values)
+            } else {
+                results.firstOrNull()?.text?.let(::validDecodedText)?.let(DecodeOutcome::Value)
+                    ?: DecodeOutcome.NotFound
+            }
+        } catch (error: Throwable) {
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
+            Log.w(TAG, "Cropped native decoding failed (${error.javaClass.simpleName})")
+            decodeJavaCrop(frame, mode, focusedCrop, multiple)
+        } finally {
+            frame.setCropRect(frameCrop)
+        }
+    }
 
     /** Reuses the mode's Java reader and copies only the selected luma area. */
     private fun decodeJavaCrop(frame: ImageProxy, mode: ScanMode, crop: Rect?, multiple: Boolean): DecodeOutcome {

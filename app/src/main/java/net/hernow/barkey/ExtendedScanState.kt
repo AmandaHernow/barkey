@@ -154,6 +154,13 @@ internal class SingleScanGate {
         consumed = true
         return true
     }
+
+    /** Makes the field available again when Undo leaves it empty. */
+    @Synchronized fun rearmAfterUndo(fieldIsEmpty: Boolean): Boolean {
+        if (!consumed || !fieldIsEmpty) return false
+        reset()
+        return true
+    }
     /**
      * Ends an IME input session without dropping a recognisable field's allowance. Keep only the
      * host package and Android field ID; release the old InputConnection reference. If Android

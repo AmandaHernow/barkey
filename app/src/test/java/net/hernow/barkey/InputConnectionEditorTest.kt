@@ -39,6 +39,34 @@ class InputConnectionEditorTest {
         assertFalse(editor.canUndo(connection, 1L))
     }
 
+    @Test fun singleScanCanRunAgainWhenUndoRestoresAnEmptyField() {
+        val connection = FakeEditorConnection()
+        val gate = SingleScanGate()
+        val field = EditorFieldKey(connection.identity, "example.app", 1)
+        gate.moveTo(field)
+        assertTrue(gate.consume())
+
+        assertTrue(editor.commitScan(connection, 1L, "QR-123", recordUndo = true))
+        assertTrue(editor.undo(connection, 1L))
+        assertTrue(editor.isFieldEmpty(connection))
+        assertTrue(gate.rearmAfterUndo(editor.isFieldEmpty(connection)))
+        gate.moveTo(field)
+        assertFalse(gate.isConsumed())
+    }
+
+    @Test fun singleScanStaysUsedWhenUndoRestoresEarlierFieldText() {
+        val connection = FakeEditorConnection("existing")
+        val gate = SingleScanGate()
+        gate.moveTo(EditorFieldKey(connection.identity, "example.app", 1))
+        assertTrue(gate.consume())
+
+        assertTrue(editor.commitScan(connection, 1L, "QR-123", recordUndo = true))
+        assertTrue(editor.undo(connection, 1L))
+        assertFalse(editor.isFieldEmpty(connection))
+        assertFalse(gate.rearmAfterUndo(editor.isFieldEmpty(connection)))
+        assertTrue(gate.isConsumed())
+    }
+
     @Test fun scanIsUndoableWhenFinishComposingReturnsFalseButInsertionVerifies() {
         val connection = FakeEditorConnection().apply { finishComposingResult = false }
         assertTrue(editor.commitScan(connection, 1L, "123456789", true))
