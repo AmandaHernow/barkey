@@ -84,7 +84,7 @@ BarKey is free to use for private, personal purposes. Company or workplace use, 
 
 Contact me at [barkey.support@hernow.net](mailto:barkey.support@hernow.net) to request commercial permission or discuss a commercial version.
 
-The source code is available under the [PolyForm Noncommercial License 1.0.0](LICENSE). This is a source-available licence that restricts commercial use; it is not an OSI-approved open-source licence. The separate in-app agreement explains the personal-use terms for the BarKey app. Earlier copies released under Apache License 2.0 remain under their original terms; this licence change does not revoke permissions already granted.
+The source code is available under the [PolyForm Noncommercial License 1.0.0](LICENSE). This is a source-available licence that restricts commercial use; it is not an OSI-approved open-source licence.
 
 ## More information
 
