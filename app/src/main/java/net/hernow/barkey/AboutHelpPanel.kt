@@ -209,6 +209,7 @@ internal class AboutHelpPanel(
         applyTheme(context)
     }
 
+    /** Reapplies theme colours after Android changes appearance. */
     fun applyTheme(context: Context) {
         root.setBackgroundColor(ContextCompat.getColor(context, R.color.keyboard_background))
         val primary = ContextCompat.getColor(context, R.color.keyboard_text_primary)
@@ -226,6 +227,7 @@ internal class AboutHelpPanel(
         }
     }
 
+    /** Adds one titled group to the scrollable help panel. */
     private fun addSection(context: Context, titleId: Int, addContent: (LinearLayout) -> Unit) {
         val section = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -242,6 +244,7 @@ internal class AboutHelpPanel(
         sectionViews += section
     }
 
+    /** Adds a privacy point without reading from the active text field. */
     private fun addPrivacyItem(context: Context, section: LinearLayout, titleId: Int, bodyId: Int) {
         val title = text(context, titleId, 14f, bold = true).apply { tag = TITLE_TAG }
         section.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -255,6 +258,7 @@ internal class AboutHelpPanel(
         })
     }
 
+    /** Opens a project link outside the keyboard. */
     private fun addExternalLink(context: Context, section: LinearLayout, labelId: Int, url: String) {
         val link = text(context, labelId, 14f).apply {
             paint.isUnderlineText = true

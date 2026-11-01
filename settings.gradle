@@ -1,5 +1,6 @@
 // Copyright 2026 Amanda Hernow. Modified for BarKey.
 pluginManagement {
+    // Resolve build plugins from the standard public repositories.
     repositories {
         google()
         mavenCentral()
@@ -12,6 +13,7 @@ plugins {
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Keep app dependencies on Google's and Maven Central's repositories.
     repositories {
         google()
         mavenCentral()

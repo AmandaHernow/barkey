@@ -19,6 +19,7 @@ internal class AndroidEditorConnection(
     override fun commitText(text: String, newCursorPosition: Int): Boolean =
         inputConnection.commitText(text, newCursorPosition)
 
+    /** Prefers Android's bounded surrounding-text result, then tries older APIs. */
     override fun cursorSnapshot(beforeLength: Int, afterLength: Int): EditorCursorSnapshot? {
         if (beforeLength < 0 || afterLength < 0) return null
         val surrounding = if (apiLevel >= Build.VERSION_CODES.S) {
@@ -48,6 +49,7 @@ internal class AndroidEditorConnection(
         return inputConnection.sendKeyEvent(KeyEvent(eventTime, eventTime, action, keyCode, 0))
     }
 
+    /** Builds a bounded snapshot from Android's surrounding-text API. */
     private fun surroundingTextSnapshot(beforeLength: Int, afterLength: Int): EditorCursorSnapshot? {
         val surrounding = inputConnection.getSurroundingText(beforeLength, afterLength, 0) ?: return null
         val start = surrounding.selectionStart
@@ -71,6 +73,7 @@ internal class AndroidEditorConnection(
     }
 
     @Suppress("DEPRECATION")
+    /** Uses extracted text only when its selection coordinates are usable. */
     private fun extractedTextSnapshot(beforeLength: Int, afterLength: Int): EditorCursorSnapshot? {
         val request = ExtractedTextRequest().apply {
             token = 0
@@ -101,6 +104,7 @@ internal class AndroidEditorConnection(
         )
     }
 
+    /** Falls back to separate before/after queries on older editors. */
     private fun beforeAfterSnapshot(beforeLength: Int, afterLength: Int): EditorCursorSnapshot? {
         val before = inputConnection.getTextBeforeCursor(beforeLength, 0)?.toString() ?: return null
         val after = inputConnection.getTextAfterCursor(afterLength, 0)?.toString() ?: return null

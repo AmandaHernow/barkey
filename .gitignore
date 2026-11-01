@@ -1,6 +1,7 @@
 # Copyright 2026 Amanda Hernow. Modified for BarKey.
-# Local task handoff and workstation configuration
-/HANDOFF.md
+# Local instructions, task handoffs, and workstation configuration
+**/[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+**/[Hh][Aa][Nn][Dd][Oo][Ff][Ff].[Mm][Dd]
 /local.properties
 /.idea/**
 !/.idea/codeStyles/
@@ -39,4 +40,3 @@
 .env.*
 !.env.example
 /app/release/
-/AGENTS.md

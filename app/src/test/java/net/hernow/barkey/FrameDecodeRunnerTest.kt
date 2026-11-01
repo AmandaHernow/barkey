@@ -3,6 +3,7 @@ package net.hernow.barkey
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** Checks that camera frames close after every decode outcome. */
 class FrameDecodeRunnerTest {
     @Test fun closesFrameExactlyOnceAfterSuccess() {
         val frame = FakeFrame()

@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks scan mode changes and stale-frame detection. */
 class ScanModeTest {
     @Test fun startsFastAndTogglesToAccurateAndBackWithMatchingLabels() {
         val modes = ScanModeController()

@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks torch requests, confirmation and failure handling. */
 class TorchStateControllerTest {
     @Test fun startsOffAndUpdatesOnlyAfterSuccessfulCameraCompletion() {
         val torch = TorchStateController()

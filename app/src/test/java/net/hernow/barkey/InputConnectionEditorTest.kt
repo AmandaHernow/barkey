@@ -11,6 +11,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks editing, Undo and navigation against a fake editor. */
 class InputConnectionEditorTest {
     private val editor = InputConnectionEditor()
 

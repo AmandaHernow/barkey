@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks Preview, Focus and Single Scan state and geometry. */
 class ExtendedScanStateTest {
     @Test fun previewSuppressesAutomaticInsertionAndAllowsOnlyLiveDistinctCandidates() {
         val state = PreviewCandidateState(expiryMillis = 1_000)

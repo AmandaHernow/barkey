@@ -2,14 +2,18 @@ package net.hernow.barkey
 
 import java.util.concurrent.atomic.AtomicLong
 
+/** Maximum number of values shown in Preview at once. */
+internal const val MAX_PREVIEW_CANDIDATES = 8
+
 /** Small in-memory set of currently visible Preview candidates. */
 internal class PreviewCandidateState(
     private val expiryMillis: Long = 1_200L,
-    private val maxCandidates: Int = 8,
+    private val maxCandidates: Int = MAX_PREVIEW_CANDIDATES,
 ) {
     private val seenAt = linkedMapOf<String, Long>()
     private var selectionGeneration = 0L
 
+    /** Adds live values, removes expired ones and keeps the row within its limit. */
     @Synchronized
     fun update(values: Collection<String>, nowMillis: Long): List<String> {
         expire(nowMillis)
@@ -19,21 +23,25 @@ internal class PreviewCandidateState(
         return seenAt.keys.toList()
     }
 
+    /** Returns only suggestions seen within the expiry window. */
     @Synchronized
     fun expire(nowMillis: Long): List<String> {
         seenAt.entries.removeAll { nowMillis - it.value > expiryMillis }
         return seenAt.keys.toList()
     }
 
+    /** Tags buttons so a cleared candidate cannot be selected later. */
     @Synchronized
     fun selectionToken(): Long = selectionGeneration
 
+    /** Checks both the button generation and the candidate's expiry. */
     @Synchronized
     fun isSelectable(value: String, nowMillis: Long, token: Long = selectionGeneration): Boolean {
         expire(nowMillis)
         return token == selectionGeneration && seenAt.containsKey(value)
     }
 
+    /** Clears suggestions and invalidates every button already on screen. */
     @Synchronized
     fun clear() {
         seenAt.clear()
@@ -52,6 +60,7 @@ internal class FocusRegionState(
     private var region = initialRegion
 
     @Synchronized
+    /** Reads the region together with its current callback generation. */
     fun snapshot(): Snapshot = Snapshot(region, callbacks.current())
 
     /** Returns false without invalidating anything when layout or a drag leaves the region unchanged. */
@@ -74,8 +83,10 @@ internal class FocusRegionState(
 
 /** Preview never sends a decoded value directly to the editor while selection is enabled. */
 internal object PreviewDeliveryPolicy {
+    /** Preview requires a tap before any value can reach the editor. */
     fun mayInsertAutomatically(previewEnabled: Boolean): Boolean = !previewEnabled
 
+    /** Allows only a live value that was shown to the user. */
     fun maySelect(
         previewEnabled: Boolean,
         candidates: PreviewCandidateState,
@@ -84,6 +95,7 @@ internal object PreviewDeliveryPolicy {
         selectionToken: Long = candidates.selectionToken(),
     ): Boolean = previewEnabled && candidates.isSelectable(value, nowMillis, selectionToken)
 
+    /** Keeps a suggestion tied to the editor connection that produced it. */
     fun maySelectFromContext(
         previewEnabled: Boolean,
         candidates: PreviewCandidateState,
@@ -124,7 +136,10 @@ internal class SingleScanGate {
         return !sameField
     }
 
+    /** Reports whether this field has already received its one scan. */
     @Synchronized fun isConsumed(): Boolean = consumed
+
+    /** Uses the field's allowance after a successful insertion. */
     @Synchronized fun consume(): Boolean {
         if (field == null || consumed) return false
         consumed = true
@@ -175,10 +190,10 @@ internal object FocusRegionGeometry {
         if (!mapped.isFiniteAndNonEmpty()) return null
         val cropWidth = (crop.right - crop.left).toFloat()
         val cropHeight = (crop.bottom - crop.top).toFloat()
-        val left = mapped.left.coerceIn(0f, cropWidth)
-        val top = mapped.top.coerceIn(0f, cropHeight)
-        val right = mapped.right.coerceIn(0f, cropWidth)
-        val bottom = mapped.bottom.coerceIn(0f, cropHeight)
+        val left = snapNearInteger(mapped.left).coerceIn(0f, cropWidth)
+        val top = snapNearInteger(mapped.top).coerceIn(0f, cropHeight)
+        val right = snapNearInteger(mapped.right).coerceIn(0f, cropWidth)
+        val bottom = snapNearInteger(mapped.bottom).coerceIn(0f, cropHeight)
         if (right <= left || bottom <= top) return null
         val result = ImageRect(
             crop.left + kotlin.math.floor(left).toInt(),
@@ -244,10 +259,12 @@ internal object FocusRegionGeometry {
         return RectF(left, top, left + width, top + height)
     }
 
+    /** Places a region in the centre and clamps it to the preview. */
     fun centeredRect(boundsWidth: Float, boundsHeight: Float, width: Float, height: Float): RectF =
         clampRect((boundsWidth - width) / 2f, (boundsHeight - height) / 2f, width, height,
             boundsWidth, boundsHeight, minWidth = 1f, minHeight = 1f)
 
+    /** Restores a preview-relative region at the current view size. */
     fun normalizedToPixels(
         normalized: RectF,
         width: Float,
@@ -263,6 +280,7 @@ internal object FocusRegionGeometry {
         ).takeIf { it.isFiniteAndNonEmpty() }
     }
 
+    /** Saves a pixel region as proportions so it survives preview resizing. */
     fun pixelsToNormalized(rect: RectF, width: Float, height: Float): RectF? {
         if (!rect.isFiniteAndNonEmpty() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f) return null
         val normalized = RectF(rect.left / width, rect.top / height, rect.right / width, rect.bottom / height)
@@ -271,12 +289,20 @@ internal object FocusRegionGeometry {
 
     private fun RectF.isFiniteAndNonEmpty(): Boolean =
         left.isFinite() && top.isFinite() && right.isFinite() && bottom.isFinite() && right > left && bottom > top
+
+    /** Prevents float transform noise from adding a spurious pixel at integer boundaries. */
+    private fun snapNearInteger(value: Float): Float {
+        val nearest = kotlin.math.round(value)
+        return if (kotlin.math.abs(value - nearest) <= 0.0001f) nearest else value
+    }
 }
 
+/** Chooses the decoder path for the current scanner controls. */
 internal enum class FrameDecodeRequest { NORMAL, MULTIPLE_CANDIDATES, FOCUSED_SINGLE, FOCUS_UNAVAILABLE }
 
 /** Keeps multi-result decoding opt-in and refuses to decode Focus frames without a valid crop. */
 internal object FrameDecodePolicy {
+    /** Fails closed when Focus has no valid crop for this frame. */
     fun request(previewEnabled: Boolean, focusEnabled: Boolean, cropAvailable: Boolean): FrameDecodeRequest = when {
         focusEnabled && !cropAvailable -> FrameDecodeRequest.FOCUS_UNAVAILABLE
         previewEnabled -> FrameDecodeRequest.MULTIPLE_CANDIDATES
@@ -287,6 +313,7 @@ internal object FrameDecodePolicy {
 
 /** Camera-worker-safe gate: it reads only the volatile mode and synchronized insertion allowance. */
 internal object SingleScanDecodePolicy {
+    /** Skips camera work only after the enabled field has accepted a scan. */
     fun shouldDecode(singleScanEnabled: Boolean, allowanceConsumed: Boolean): Boolean =
         !singleScanEnabled || !allowanceConsumed
 }
@@ -294,7 +321,12 @@ internal object SingleScanDecodePolicy {
 /** Invalidates camera results captured before a mode or surface transition. */
 internal class CallbackGeneration {
     private val value = AtomicLong(0L)
+    /** Reads the version captured by pending camera work. */
     fun current(): Long = value.get()
+
+    /** Invalidates results captured before a setting or surface change. */
     fun advance(): Long = value.incrementAndGet()
+
+    /** Checks whether a delayed result still belongs to the current state. */
     fun accepts(callbackGeneration: Long): Boolean = value.get() == callbackGeneration
 }

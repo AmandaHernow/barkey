@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import zxingcpp.BarcodeReader
 
+/** Checks supported formats and native-to-Java fallback rules. */
 class BarcodeDecoderTest {
     @Test fun fastAndAccurateNativeProfilesHaveSameFormatsAndRequestedTradeoffs() {
         val fast = BarcodeDecoderProfiles.nativeOptions(ScanMode.FAST)

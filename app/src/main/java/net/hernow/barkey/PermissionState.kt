@@ -8,10 +8,12 @@ internal object PermissionState {
     private const val PREFERENCES = "camera_permission_state"
     private const val KEY_SETTINGS_REQUIRED = "settings_required"
 
+    /** Remembers whether Android requires the user to open app settings. */
     fun isSettingsRequired(context: Context): Boolean =
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             .getBoolean(KEY_SETTINGS_REQUIRED, false)
 
+    /** Stores permission-flow state only; no scan data is saved here. */
     fun recordResult(context: Context, granted: Boolean, settingsRequired: Boolean) {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             .edit()

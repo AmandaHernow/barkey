@@ -3,6 +3,7 @@ package net.hernow.barkey
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** Checks decode timing with a controlled clock. */
 class DecodeTimingRecorderTest {
     @Test fun recordsMonotonicDurationWithoutChangingDecodeResult() {
         var now = 100L

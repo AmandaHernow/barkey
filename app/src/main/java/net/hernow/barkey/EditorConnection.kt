@@ -27,6 +27,7 @@ internal data class EditorCursorSnapshot(
         get() = selectionStart != selectionEnd
 }
 
+/** Tells the repeat controller whether another deletion is useful. */
 internal enum class BackspaceResult(val shouldRepeat: Boolean = false) {
     DELETED(true),
     KEY_EVENT_CONTEXT_CHANGED(true),

@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks when held Backspace repeats and when it stops. */
 class BackspaceRepeatControllerTest {
     @Test fun shortTapDeletesOnceAndHeldPressRepeatsAtConfiguredInterval() {
         val scheduler = FakeScheduler()

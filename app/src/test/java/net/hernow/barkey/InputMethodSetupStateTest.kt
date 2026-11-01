@@ -3,6 +3,7 @@ package net.hernow.barkey
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** Checks how Android input-method settings map to setup status. */
 class InputMethodSetupStateTest {
     @Test
     fun reportsDisabledAndUnselectedWhenServiceIsNotEnabled() {

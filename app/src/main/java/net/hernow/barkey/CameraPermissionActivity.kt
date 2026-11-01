@@ -9,6 +9,7 @@ import android.widget.TextView
 
 /** The system requires an Activity context to show the runtime permission dialog. */
 class CameraPermissionActivity : Activity() {
+    /** Requests camera access from an Activity context and shows a short explanation. */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(TextView(this).apply {
@@ -22,6 +23,7 @@ class CameraPermissionActivity : Activity() {
     }
 
     @Suppress("DEPRECATION")
+    /** Reports the result to the keyboard service, then closes this activity. */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,

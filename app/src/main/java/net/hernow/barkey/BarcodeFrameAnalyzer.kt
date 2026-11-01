@@ -22,6 +22,7 @@ internal class BarcodeFrameAnalyzer(
 ) : ImageAnalysis.Analyzer {
     private val reportedFailure = AtomicBoolean(false)
 
+    /** Captures one settings snapshot so a mode change cannot reuse an old frame result. */
     override fun analyze(image: ImageProxy) {
         val snapshot = modes.snapshot()
         val settings = settingsGeneration()
@@ -58,6 +59,7 @@ internal class BarcodeFrameAnalyzer(
 
 /** Owns closing the frame exactly once, even if decoding or close itself fails. */
 internal object FrameDecodeRunner {
+    /** Closes every frame once, even when decoding throws. */
     fun <T : AutoCloseable> run(frame: T, decode: (T) -> DecodeOutcome): DecodeOutcome {
         var decoded: DecodeOutcome = DecodeOutcome.Failure
         var fatalError: Throwable? = null

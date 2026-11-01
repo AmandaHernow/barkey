@@ -21,12 +21,15 @@ internal object ResponsiveKeyboardLayoutPolicy {
         val editingCellWidthPx: Int,
     )
 
+    /** Excludes the top system inset from the height available to the IME. */
     fun imeAvailableHeight(displayHeightPx: Int, topInsetPx: Int): Int =
         (displayHeightPx - topInsetPx).coerceAtLeast(1)
 
+    /** Keeps fixed controls visible above the smallest allowed preview. */
     fun minimumInputViewHeight(content: InputViewContentHeights, minimumPreviewHeightPx: Int): Int =
         (content.fixedContentHeightPx + minimumPreviewHeightPx.coerceAtLeast(0)).coerceAtLeast(1)
 
+    /** Limits the keyboard while leaving part of the host app visible. */
     fun heightBounds(
         usableDisplayHeightPx: Int,
         measuredFixedContentHeightPx: Int,
@@ -47,12 +50,15 @@ internal object ResponsiveKeyboardLayoutPolicy {
         return HeightBounds(minimum, boundedMaximum)
     }
 
+    /** Converts a drag distance to a height inside the measured limits. */
     fun resizedHeight(currentHeightPx: Int, dragDistanceYpx: Int, bounds: HeightBounds): Int =
         (currentHeightPx - dragDistanceYpx).coerceIn(bounds.minimumPx, bounds.maximumPx)
 
+    /** Checks whether controls and preview fit without scrolling. */
     fun controlsFit(viewportHeightPx: Int, fixedContentHeightPx: Int, previewHeightPx: Int): Boolean =
         viewportHeightPx >= fixedContentHeightPx + previewHeightPx
 
+    /** Fits as many editing buttons as possible without making them too narrow. */
     fun toolbarColumns(
         availableWidthPx: Int,
         density: Float,
@@ -67,6 +73,7 @@ internal object ResponsiveKeyboardLayoutPolicy {
             .coerceIn(1, maxColumns.coerceAtLeast(1))
     }
 
+    /** Keeps the editing group centred and capped on wide screens. */
     fun toolbarLayoutPlan(
         availableWidthPx: Int,
         density: Float,
@@ -95,9 +102,11 @@ internal object ResponsiveKeyboardLayoutPolicy {
         return ToolbarLayoutPlan(controlGroupWidth, controlGroupWidth, columns, editingRowWidth, editingCellWidth)
     }
 
+    /** Sizes each row to its buttons rather than stretching a partial row. */
     fun toolbarRowWidth(plan: ToolbarLayoutPlan, buttonCount: Int): Int =
         minOf(plan.controlGroupWidthPx, plan.editingCellWidthPx * buttonCount.coerceAtLeast(1)).coerceAtLeast(1)
 
+    /** Gives extra height to the preview after fixed controls are measured. */
     fun inputViewLayoutPlan(
         requestedInputViewHeightPx: Int,
         bounds: HeightBounds,
@@ -130,6 +139,7 @@ internal class KeyboardHeightState {
     private var selectedHeightPx: Int? = null
     private var manuallyResized = false
 
+    /** Returns the selected height clamped to the current display bounds. */
     fun height(bounds: ResponsiveKeyboardLayoutPolicy.HeightBounds): Int {
         val selected = selectedHeightPx
         if (selected == null) {
@@ -141,6 +151,7 @@ internal class KeyboardHeightState {
         return clamped
     }
 
+    /** Uses the measured height until the user has resized the keyboard. */
     fun useMeasuredDefault(heightPx: Int, bounds: ResponsiveKeyboardLayoutPolicy.HeightBounds): Int {
         if (manuallyResized) return height(bounds)
         val requested = heightPx.coerceIn(bounds.minimumPx, bounds.maximumPx)
@@ -148,6 +159,7 @@ internal class KeyboardHeightState {
         return requested
     }
 
+    /** Saves a user drag and keeps the selected height within the current bounds. */
     fun resizeFromDrag(
         dragStartHeightPx: Int,
         totalDragDistanceYpx: Int,
@@ -163,5 +175,6 @@ internal class KeyboardHeightState {
         return resized
     }
 
+    /** Lets layout choose between its default preview size and the user's size. */
     fun isManuallyResized(): Boolean = manuallyResized
 }

@@ -3,12 +3,14 @@ package net.hernow.barkey
 import android.text.InputType
 import android.view.inputmethod.EditorInfo
 
+/** Describes the safe Enter action for the current editor. */
 internal sealed class EnterCommand {
     data class PerformEditorAction(val action: Int) : EnterCommand()
     object InsertNewline : EnterCommand()
     object SendEnterKey : EnterCommand()
 }
 
+/** Tab only advances when the editor says it supports that action. */
 internal enum class NextFieldCommand {
     PERFORM_EDITOR_ACTION,
     UNSUPPORTED,
@@ -16,6 +18,7 @@ internal enum class NextFieldCommand {
 
 /** Selects an explicitly advertised navigation action or a harmless no-op. */
 internal object EditorCommandPolicy {
+    /** Chooses an editor action, newline or Enter key from the field metadata. */
     fun enter(imeOptions: Int, inputType: Int): EnterCommand {
         val action = imeOptions and EditorInfo.IME_MASK_ACTION
         val noEnterAction = (imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0
@@ -25,6 +28,7 @@ internal object EditorCommandPolicy {
         return if (isMultilineText(inputType)) EnterCommand.InsertNewline else EnterCommand.SendEnterKey
     }
 
+    /** Refuses Tab when the host field does not advertise forward navigation. */
     fun nextField(editorInfo: EditorInfo?): NextFieldCommand {
         if (editorInfo == null) return NextFieldCommand.UNSUPPORTED
         val action = editorInfo.imeOptions and EditorInfo.IME_MASK_ACTION

@@ -32,6 +32,7 @@ class SetupActivity : Activity() {
     private var cameraStatus: TextView? = null
     private var cameraButton: Button? = null
 
+    /** Restores the guide state before building the setup screen. */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         controlsExpanded = savedInstanceState?.getBoolean(STATE_CONTROLS_EXPANDED) ?: false
@@ -49,6 +50,7 @@ class SetupActivity : Activity() {
         refreshSetupStatus()
     }
 
+    /** Builds the setup steps and optional controls guide. */
     private fun createContent(): View {
         val root = ScrollView(this).apply {
             isFillViewport = true
@@ -147,6 +149,7 @@ class SetupActivity : Activity() {
         return root
     }
 
+    /** Adds the expandable guide without leaving the setup screen. */
     private fun controlsGuide(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -328,6 +331,7 @@ class SetupActivity : Activity() {
         ViewGroup.LayoutParams.WRAP_CONTENT,
     ).apply { bottomMargin = dp(10) }
 
+    /** Refreshes enabled, selected and camera-permission status from Android. */
     private fun refreshSetupStatus() {
         val component = ComponentName(this, BarcodeInputService::class.java).flattenToString()
         val manager = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
@@ -361,6 +365,7 @@ class SetupActivity : Activity() {
         }
     }
 
+    /** Opens Android settings where the user can enable BarKey. */
     private fun openInputMethodSettings() {
         try {
             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
@@ -377,11 +382,13 @@ class SetupActivity : Activity() {
         }
     }
 
+    /** Opens the system picker so Android remains in control of keyboard selection. */
     private fun showKeyboardPicker() {
         (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)?.showInputMethodPicker()
             ?: Toast.makeText(this, R.string.setup_picker_unavailable, Toast.LENGTH_LONG).show()
     }
 
+    /** Starts the app's camera permission flow. */
     private fun requestCameraPermission() {
         if (checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, R.string.setup_camera_already_allowed, Toast.LENGTH_SHORT).show()
@@ -398,6 +405,7 @@ class SetupActivity : Activity() {
         startActivity(Intent(this, CameraPermissionActivity::class.java))
     }
 
+    /** Opens project information in the user's browser. */
     private fun openExternal(url: String) {
         try {
             val uri = Uri.parse(url)

@@ -7,7 +7,10 @@ internal class BackspaceRepeatController(
     private val intervalMillis: Long,
 ) {
     interface Scheduler {
+        /** Schedules the next held-key action on the main thread. */
         fun postDelayed(task: Runnable, delayMillis: Long)
+
+        /** Cancels a pending repeat when the key is released or the input changes. */
         fun remove(task: Runnable)
     }
 
@@ -35,6 +38,7 @@ internal class BackspaceRepeatController(
         return true
     }
 
+    /** Cancels the repeat without changing the editor. */
     fun stop() {
         repeatTask?.let(scheduler::remove)
         repeatTask = null

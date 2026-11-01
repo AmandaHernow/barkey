@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks keyboard sizing, resize limits and toolbar layout. */
 class ResponsiveKeyboardLayoutPolicyTest {
     private val tabletContent = ResponsiveKeyboardLayoutPolicy.InputViewContentHeights(
         permanentContentHeightPx = 180, // Handle, signature, root padding and safe insets.
