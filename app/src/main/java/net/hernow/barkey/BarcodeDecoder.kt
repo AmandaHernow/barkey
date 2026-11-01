@@ -44,6 +44,33 @@ internal fun needsJavaTextFallback(rawBytes: ByteArray, text: String?): Boolean 
 /** Empty barcode contents are treated as a missed decode. */
 internal fun validDecodedText(text: String?): String? = text?.takeIf { it.isNotEmpty() }
 
+/** Holds tightly packed camera luminance pixels in the orientation ZXing should read. */
+internal data class LuminanceFrame(val pixels: ByteArray, val width: Int, val height: Int)
+
+private val supportedLuminanceRotations = setOf(0, 90, 180, 270)
+
+/** Rotates camera luminance bytes directly because ZXing's planar source cannot rotate itself. */
+internal fun rotateLuminance(pixels: ByteArray, width: Int, height: Int, rotationDegrees: Int): LuminanceFrame? {
+    if (width <= 0 || height <= 0 || pixels.size.toLong() != width.toLong() * height) return null
+    if (rotationDegrees !in supportedLuminanceRotations) return null
+    if (rotationDegrees == 0) return LuminanceFrame(pixels, width, height)
+
+    val rotatedWidth = if (rotationDegrees == 180) width else height
+    val rotatedHeight = if (rotationDegrees == 180) height else width
+    val rotated = ByteArray(pixels.size)
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val destination = when (rotationDegrees) {
+                90 -> x * rotatedWidth + (height - 1 - y)
+                180 -> (height - 1 - y) * rotatedWidth + (width - 1 - x)
+                else -> (width - 1 - x) * rotatedWidth + y
+            }
+            rotated[destination] = pixels[y * width + x]
+        }
+    }
+    return LuminanceFrame(rotated, rotatedWidth, rotatedHeight)
+}
+
 /** Selects Java only when native use is unavailable or fails, never after an ordinary miss. */
 internal class DecoderRouter<F>(
     private val nativeFrameSupported: (F) -> Boolean,
@@ -200,17 +227,20 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
         val plane = frame.planes.firstOrNull() ?: return null
         val safeCrop = Rect(crop ?: frame.cropRect).apply { intersect(frame.cropRect) }
         if (safeCrop.isEmpty) return null
-        val source = PlanarYUVLuminanceSource(
-            copyLumaPlane(plane.buffer, plane.rowStride, plane.pixelStride, safeCrop),
-            safeCrop.width(),
-            safeCrop.height(),
+        val sourcePixels = copyLumaPlane(plane.buffer, plane.rowStride, plane.pixelStride, safeCrop)
+        val oriented = rotateLuminance(
+            sourcePixels, safeCrop.width(), safeCrop.height(), frame.imageInfo.rotationDegrees,
+        ) ?: return null
+        return PlanarYUVLuminanceSource(
+            oriented.pixels,
+            oriented.width,
+            oriented.height,
             0,
             0,
-            safeCrop.width(),
-            safeCrop.height(),
+            oriented.width,
+            oriented.height,
             false,
         )
-        return rotate(source, frame.imageInfo.rotationDegrees)
     }
 
     /** Returns a decoded value or null when ZXing does not find a valid barcode. */
@@ -305,14 +335,6 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
             }
         }
         return luma
-    }
-
-    /** Rotates the cropped image when CameraX leaves rotation in its metadata. */
-    private fun rotate(source: PlanarYUVLuminanceSource, rotationDegrees: Int) = when (rotationDegrees) {
-        90 -> source.rotateCounterClockwise().rotateCounterClockwise().rotateCounterClockwise()
-        180 -> source.rotateCounterClockwise().rotateCounterClockwise()
-        270 -> source.rotateCounterClockwise()
-        else -> source
     }
 
     private companion object {
