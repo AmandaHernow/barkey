@@ -89,7 +89,8 @@ class BarcodeInputService : InputMethodService() {
     private val torchState = TorchStateController()
     private val keyboardHeight = KeyboardHeightState()
     private val previewCandidateState = PreviewCandidateState()
-    private var renderedPreviewValues: List<String> = emptyList()
+    // Keeps visible Preview buttons in place while newly detected candidates arrive.
+    private val previewCandidateButtons = linkedMapOf<String, Button>()
     private val singleScanGate = SingleScanGate()
     private var activeEditorField: EditorFieldKey? = null
     private val settingsCallbackGeneration = CallbackGeneration()
@@ -1945,7 +1946,7 @@ class BarcodeInputService : InputMethodService() {
     }
 
     private fun clearPreviewCandidateViews() {
-        renderedPreviewValues = emptyList()
+        previewCandidateButtons.clear()
         previewCandidateRow?.removeAllViews()
         previewCandidateRow?.visibility = View.GONE
     }
@@ -2029,16 +2030,18 @@ class BarcodeInputService : InputMethodService() {
     ) {
         val row = previewCandidateRow ?: return
         val editorContext = currentFieldKey() ?: return
-        if (values == renderedPreviewValues) return
-        val selectionToken = previewCandidateState.selectionToken()
-        renderedPreviewValues = values
-        row.removeAllViews()
-        if (!previewEnabled || values.isEmpty()) {
-            row.visibility = View.GONE
+        if (!previewEnabled) {
+            clearPreviewCandidateViews()
             return
         }
-        row.visibility = View.VISIBLE
+        val selectionToken = previewCandidateState.selectionToken()
+
+        // Remove only candidates that have expired; leave the other buttons and their positions alone.
+        previewCandidateButtons.keys.filterNot(values::contains).forEach { value ->
+            previewCandidateButtons.remove(value)?.let(row::removeView)
+        }
         values.forEach { value ->
+            if (previewCandidateButtons.containsKey(value)) return@forEach
             val suggestion = Button(this).apply {
                 text = if (value.length > 48) value.take(48) + "\u2026" else value
                 contentDescription = value
@@ -2062,7 +2065,9 @@ class BarcodeInputService : InputMethodService() {
             row.addView(suggestion, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, 0, (4 * resources.displayMetrics.density).toInt(), 0)
             })
+            previewCandidateButtons[value] = suggestion
         }
+        row.visibility = if (previewCandidateButtons.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun onDecoderFailure(sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long) {

@@ -18,6 +18,21 @@ BarKey is free for private, personal use. Company and workplace use require my p
 - Provides portrait and landscape layouts, follows Android’s light or dark appearance, and lets you resize the docked keyboard.
 - Includes an in-keyboard **About & Help** panel and a setup guide for enabling BarKey in Android settings.
 
+## Screenshots
+
+<table>
+  <tr>
+    <th>Setup guide</th>
+    <th>Focus with Single Scan</th>
+    <th>Preview suggestions</th>
+  </tr>
+  <tr>
+    <td><img src="first-run.jpg" alt="BarKey setup guide showing keyboard setup and camera permission" width="220"></td>
+    <td><img src="focus.jpg" alt="BarKey camera preview with the Focus scan area enabled" width="220"></td>
+    <td><img src="preview.jpg" alt="BarKey camera preview with selectable barcode suggestions" width="220"></td>
+  </tr>
+</table>
+
 ## First use
 
 1. Open BarKey and read the personal-use agreement. If you select BarKey as your keyboard before opening the launcher app, the agreement appears when you first use the keyboard.

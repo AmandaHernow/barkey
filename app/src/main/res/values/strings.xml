@@ -146,7 +146,7 @@
     <string name="editing_unavailable">That editing action could not be completed in this field.</string>
     <string name="scan_undo_complete">Last BarKey insertion undone.</string>
     <string name="scan_undo_unavailable">Undo is unavailable because the insertion or cursor context changed.</string>
-    <string name="developer_signature">BarKey Â· Developed by Amanda Hernow Â· 2026 Â· Version 1.0</string>
+    <string name="developer_signature">BarKey · Developed by Amanda Hernow · 2026 · Version 1.0.1</string>
     <string name="help_icon_label">?</string>
     <string name="help_icon_description">About and Help</string>
     <string name="help_close">Close</string>
