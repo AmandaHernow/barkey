@@ -2,36 +2,74 @@ package net.hernow.barkey
 
 import android.graphics.ImageFormat
 import android.graphics.Rect
+import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.BarcodeFormat as JavaBarcodeFormat
 import com.google.zxing.ChecksumException
 import com.google.zxing.DecodeHintType
 import com.google.zxing.FormatException
+import com.google.zxing.LuminanceSource
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.NotFoundException
 import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.multi.GenericMultipleBarcodeReader
 import com.google.zxing.common.HybridBinarizer
 import zxingcpp.BarcodeReader
 
+/** Result of one frame decode, including every value found in Preview mode. */
 internal sealed interface DecodeOutcome {
     data class Value(val text: String) : DecodeOutcome
+    data class Values(val texts: List<String>) : DecodeOutcome
     data object NotFound : DecodeOutcome
     data object Failure : DecodeOutcome
 }
 
+/** Adapts a decoder library to the frame-based fallback router. */
 internal fun interface FrameValueDecoder<F> {
     fun decode(frame: F): String?
 }
 
+/** Supports normal, multi-code and cropped frame decoding. */
 internal fun interface BarcodeFrameDecoder {
     fun decode(frame: ImageProxy, mode: ScanMode): DecodeOutcome
+    fun decodeCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect? = null): DecodeOutcome = decode(frame, mode)
+    fun decodeFocused(frame: ImageProxy, mode: ScanMode, crop: Rect): DecodeOutcome = decodeCandidates(frame, mode, crop)
 }
 
+/** The Java reader handles text the native wrapper cannot return safely. */
 internal fun needsJavaTextFallback(rawBytes: ByteArray, text: String?): Boolean =
     rawBytes.any { it == 0.toByte() } || text.isNullOrEmpty()
 
+/** Empty barcode contents are treated as a missed decode. */
 internal fun validDecodedText(text: String?): String? = text?.takeIf { it.isNotEmpty() }
+
+/** Holds tightly packed camera luminance pixels in the orientation ZXing should read. */
+internal data class LuminanceFrame(val pixels: ByteArray, val width: Int, val height: Int)
+
+private val supportedLuminanceRotations = setOf(0, 90, 180, 270)
+
+/** Rotates camera luminance bytes directly because ZXing's planar source cannot rotate itself. */
+internal fun rotateLuminance(pixels: ByteArray, width: Int, height: Int, rotationDegrees: Int): LuminanceFrame? {
+    if (width <= 0 || height <= 0 || pixels.size.toLong() != width.toLong() * height) return null
+    if (rotationDegrees !in supportedLuminanceRotations) return null
+    if (rotationDegrees == 0) return LuminanceFrame(pixels, width, height)
+
+    val rotatedWidth = if (rotationDegrees == 180) width else height
+    val rotatedHeight = if (rotationDegrees == 180) height else width
+    val rotated = ByteArray(pixels.size)
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val destination = when (rotationDegrees) {
+                90 -> x * rotatedWidth + (height - 1 - y)
+                180 -> (height - 1 - y) * rotatedWidth + (width - 1 - x)
+                else -> (width - 1 - x) * rotatedWidth + y
+            }
+            rotated[destination] = pixels[y * width + x]
+        }
+    }
+    return LuminanceFrame(rotated, rotatedWidth, rotatedHeight)
+}
 
 /** Selects Java only when native use is unavailable or fails, never after an ordinary miss. */
 internal class DecoderRouter<F>(
@@ -45,6 +83,7 @@ internal class DecoderRouter<F>(
     var nativeInitializationAttempts: Int = 0
         private set
 
+    /** Uses native decoding first, then falls back when it cannot handle the frame. */
     fun decode(frame: F, mode: ScanMode): DecodeOutcome {
         if (!nativeUnavailable && nativeFrameSupported(frame)) {
             val nativeDecoder = nativeDecoderOrDisable(mode)
@@ -73,6 +112,7 @@ internal class DecoderRouter<F>(
             null
         }
 
+    /** Creates the Java reader only when fallback is needed. */
     private fun decodeJava(frame: F, mode: ScanMode): DecodeOutcome = try {
         val javaDecoder = javaDecoders[mode] ?: javaFactory(mode).also { javaDecoders[mode] = it }
         outcome(javaDecoder.decode(frame))
@@ -95,14 +135,168 @@ private class NativeFallbackForFrame : RuntimeException()
 
 /** Native ZXing-C++ first, with Java ZXing retained for unavailable or incompatible frames. */
 internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
+    // CameraX runs analysis on one serial executor, so each mode can reuse its readers.
+    private val multiNativeReaders = mutableMapOf<ScanMode, BarcodeReader>()
+    private val nativeCropReaders = mutableMapOf<Pair<ScanMode, Boolean>, BarcodeReader>()
+    private val javaReaders = mutableMapOf<Pair<ScanMode, Boolean>, MultiFormatReader>()
     private val router = DecoderRouter(
         nativeFrameSupported = ::nativeCanRead,
         nativeFactory = ::createNativeDecoder,
         javaFactory = ::createJavaDecoder,
     )
 
+    /** Decodes one value using the standard native-first route. */
     override fun decode(frame: ImageProxy, mode: ScanMode): DecodeOutcome = router.decode(frame, mode)
 
+    /** Finds several values for Preview, including inside Focus when both are enabled. */
+    override fun decodeCandidates(frame: ImageProxy, mode: ScanMode, crop: Rect?): DecodeOutcome {
+        if (crop != null) return decodeNativeCrop(frame, mode, crop, multiple = true)
+        if (!nativeCanRead(frame)) return decodeJavaCrop(frame, mode, null, multiple = true)
+        return try {
+            val reader = multiNativeReaders.getOrPut(mode) {
+                BarcodeReader(BarcodeDecoderProfiles.nativeOptions(mode, MAX_PREVIEW_CANDIDATES))
+            }
+            val rawResults = reader.read(frame)
+            if (rawResults.any { result -> result.format != BarcodeReader.Format.NONE && result.error == null &&
+                    result.bytes?.isNotEmpty() == true && needsJavaTextFallback(result.bytes!!, result.text) }) {
+                return decodeJavaCrop(frame, mode, null, multiple = true)
+            }
+            val results = rawResults.asSequence()
+                .filter { it.format != BarcodeReader.Format.NONE && it.error == null && it.bytes?.isNotEmpty() == true }
+                .mapNotNull { it.text?.takeIf(String::isNotEmpty) }.distinct().toList()
+            if (results.isNotEmpty()) DecodeOutcome.Values(results) else DecodeOutcome.NotFound
+        } catch (error: Throwable) {
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
+            // Native decoding remains primary. Use Java only when native is unavailable or errors.
+            decodeJavaCrop(frame, mode, null, multiple = true)
+        }
+    }
+
+    /** Uses the same native reader and mode options as normal scans, limited to Focus bounds. */
+    override fun decodeFocused(frame: ImageProxy, mode: ScanMode, crop: Rect): DecodeOutcome {
+        return decodeNativeCrop(frame, mode, crop, multiple = false)
+    }
+
+    /** Temporarily applies a safe crop so the native reader can use the selected scan mode. */
+    private fun decodeNativeCrop(frame: ImageProxy, mode: ScanMode, crop: Rect, multiple: Boolean): DecodeOutcome {
+        if (!nativeCanRead(frame)) return decodeJavaCrop(frame, mode, crop, multiple)
+        val frameCrop = Rect(frame.cropRect)
+        val focusedCrop = Rect(crop)
+        if (!focusedCrop.intersect(frameCrop) || focusedCrop.isEmpty) return DecodeOutcome.NotFound
+        val reader = try {
+            nativeCropReaders.getOrPut(mode to multiple) {
+                BarcodeReader(BarcodeDecoderProfiles.nativeOptions(mode, if (multiple) MAX_PREVIEW_CANDIDATES else 1))
+            }
+        } catch (error: Throwable) {
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
+            return decodeJavaCrop(frame, mode, focusedCrop, multiple)
+        }
+
+        return try {
+            frame.setCropRect(focusedCrop)
+            val results = reader.read(frame).filter { candidate ->
+                candidate.format != BarcodeReader.Format.NONE && candidate.error == null &&
+                    candidate.bytes?.isNotEmpty() == true
+            }
+            if (results.any { result -> result.bytes?.let { needsJavaTextFallback(it, result.text) } == true }) {
+                decodeJavaCrop(frame, mode, focusedCrop, multiple)
+            } else if (multiple) {
+                val values = results.asSequence().mapNotNull { it.text?.takeIf(String::isNotEmpty) }
+                    .distinct().take(MAX_PREVIEW_CANDIDATES).toList()
+                if (values.isEmpty()) DecodeOutcome.NotFound else DecodeOutcome.Values(values)
+            } else {
+                results.firstOrNull()?.text?.let(::validDecodedText)?.let(DecodeOutcome::Value)
+                    ?: DecodeOutcome.NotFound
+            }
+        } catch (error: Throwable) {
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
+            Log.w(TAG, "Cropped native decoding failed (${error.javaClass.simpleName})")
+            decodeJavaCrop(frame, mode, focusedCrop, multiple)
+        } finally {
+            frame.setCropRect(frameCrop)
+        }
+    }
+
+    /** Reuses the mode's Java reader and copies only the selected luma area. */
+    private fun decodeJavaCrop(frame: ImageProxy, mode: ScanMode, crop: Rect?, multiple: Boolean): DecodeOutcome {
+        return try {
+            val oriented = javaLuminanceSource(frame, crop) ?: return DecodeOutcome.NotFound
+            val reader = javaReader(mode, focusCrop = crop != null)
+            try {
+                val bitmap = BinaryBitmap(HybridBinarizer(oriented))
+                if (multiple) {
+                    val found = GenericMultipleBarcodeReader(reader).decodeMultiple(bitmap)
+                        .mapNotNull { it.text.takeIf(String::isNotEmpty) }
+                        .distinct()
+                        .take(MAX_PREVIEW_CANDIDATES)
+                    if (found.isEmpty()) DecodeOutcome.NotFound else DecodeOutcome.Values(found)
+                } else {
+                    val text = decodeJavaValue(reader, bitmap)
+                    text?.let(DecodeOutcome::Value) ?: DecodeOutcome.NotFound
+                }
+            } catch (_: NotFoundException) {
+                DecodeOutcome.NotFound
+            } catch (_: ChecksumException) {
+                DecodeOutcome.NotFound
+            } catch (_: FormatException) {
+                DecodeOutcome.NotFound
+            } finally {
+                reader.reset()
+            }
+        } catch (error: Throwable) {
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
+            Log.e(TAG, "Crop decoding failed (${error.javaClass.simpleName})")
+            DecodeOutcome.Failure
+        }
+    }
+
+    /** Creates each Java reader once and reuses it on CameraX's single analysis thread. */
+    private fun javaReader(mode: ScanMode, focusCrop: Boolean = false): MultiFormatReader =
+        javaReaders.getOrPut(mode to focusCrop) {
+        MultiFormatReader().apply {
+            setHints(
+                mapOf(
+                    DecodeHintType.POSSIBLE_FORMATS to BarcodeDecoderProfiles.javaFormats,
+                    // Cropping removes context, so Focus always gives ZXing the slower thorough pass.
+                    DecodeHintType.TRY_HARDER to (focusCrop || BarcodeDecoderProfiles.javaTryHarder(mode)),
+                ),
+            )
+        }
+    }
+
+    /** Builds the rotated Java luminance source from a safe frame crop. */
+    private fun javaLuminanceSource(frame: ImageProxy, crop: Rect?): LuminanceSource? {
+        val plane = frame.planes.firstOrNull() ?: return null
+        val safeCrop = Rect(crop ?: frame.cropRect).apply { intersect(frame.cropRect) }
+        if (safeCrop.isEmpty) return null
+        val sourcePixels = copyLumaPlane(plane.buffer, plane.rowStride, plane.pixelStride, safeCrop)
+        val oriented = rotateLuminance(
+            sourcePixels, safeCrop.width(), safeCrop.height(), frame.imageInfo.rotationDegrees,
+        ) ?: return null
+        return PlanarYUVLuminanceSource(
+            oriented.pixels,
+            oriented.width,
+            oriented.height,
+            0,
+            0,
+            oriented.width,
+            oriented.height,
+            false,
+        )
+    }
+
+    /** Returns a decoded value or null when ZXing does not find a valid barcode. */
+    private fun decodeJavaValue(reader: MultiFormatReader, bitmap: BinaryBitmap): String? = try {
+        reader.decodeWithState(bitmap).text.takeIf(String::isNotEmpty)
+    } catch (_: NotFoundException) {
+        null
+    } catch (_: ChecksumException) {
+        null
+    } catch (_: FormatException) {
+        null
+    }
+
+    /** Builds the primary ZXing-C++ decoder for the selected scan mode. */
     private fun createNativeDecoder(mode: ScanMode): FrameValueDecoder<ImageProxy> {
         val reader = BarcodeReader(BarcodeDecoderProfiles.nativeOptions(mode))
         return FrameValueDecoder { image ->
@@ -121,46 +315,20 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
         }
     }
 
+    /** Builds the Java fallback for frames the native reader cannot handle. */
     private fun createJavaDecoder(mode: ScanMode): FrameValueDecoder<ImageProxy> {
-        val reader = MultiFormatReader().apply {
-            setHints(
-                mapOf(
-                    DecodeHintType.POSSIBLE_FORMATS to BarcodeDecoderProfiles.javaFormats,
-                    DecodeHintType.TRY_HARDER to BarcodeDecoderProfiles.javaTryHarder(mode),
-                ),
-            )
-        }
+        val reader = javaReader(mode)
         return FrameValueDecoder { image ->
+            val oriented = javaLuminanceSource(image, crop = null) ?: return@FrameValueDecoder null
             try {
-                val plane = image.planes.firstOrNull() ?: return@FrameValueDecoder null
-                val crop = image.cropRect
-                val source = PlanarYUVLuminanceSource(
-                    copyLumaPlane(plane.buffer, plane.rowStride, plane.pixelStride, crop),
-                    crop.width(),
-                    crop.height(),
-                    0,
-                    0,
-                    crop.width(),
-                    crop.height(),
-                    false,
-                )
-                val oriented = rotate(source, image.imageInfo.rotationDegrees)
-                val text = try {
-                    reader.decodeWithState(BinaryBitmap(HybridBinarizer(oriented))).text
-                } catch (_: NotFoundException) {
-                    null
-                } catch (_: ChecksumException) {
-                    null
-                } catch (_: FormatException) {
-                    null
-                }
-                text
+                decodeJavaValue(reader, BinaryBitmap(HybridBinarizer(oriented)))
             } finally {
                 reader.reset()
             }
         }
     }
 
+    /** Checks that the native reader can safely use this YUV plane and crop. */
     private fun nativeCanRead(image: ImageProxy): Boolean {
         return try {
             if (image.format !in NATIVE_YUV_FORMATS) return false
@@ -180,6 +348,7 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
         }
     }
 
+    /** Copies a strided crop into the packed byte array ZXing expects. */
     private fun copyLumaPlane(
         source: java.nio.ByteBuffer,
         rowStride: Int,
@@ -210,14 +379,8 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
         return luma
     }
 
-    private fun rotate(source: PlanarYUVLuminanceSource, rotationDegrees: Int) = when (rotationDegrees) {
-        90 -> source.rotateCounterClockwise().rotateCounterClockwise().rotateCounterClockwise()
-        180 -> source.rotateCounterClockwise().rotateCounterClockwise()
-        270 -> source.rotateCounterClockwise()
-        else -> source
-    }
-
     private companion object {
+        const val TAG = "BarcodeDecoder"
         val NATIVE_YUV_FORMATS = setOf(
             ImageFormat.YUV_420_888,
             ImageFormat.YUV_422_888,
@@ -226,7 +389,9 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     }
 }
 
+/** Keeps the supported formats and decoder options in one place. */
 internal object BarcodeDecoderProfiles {
+    /** Keeps supported formats aligned between the native and Java readers. */
     val nativeFormats: Set<BarcodeReader.Format> = setOf(
         BarcodeReader.Format.QR_CODE,
         BarcodeReader.Format.DATA_MATRIX,
@@ -273,7 +438,8 @@ internal object BarcodeDecoderProfiles {
         JavaBarcodeFormat.MAXICODE,
     )
 
-    fun nativeOptions(mode: ScanMode) = BarcodeReader.Options(
+    /** Uses the selected mode and result limit to configure ZXing-C++. */
+    fun nativeOptions(mode: ScanMode, maxSymbols: Int = 1) = BarcodeReader.Options(
         formats = nativeFormats,
         tryHarder = mode == ScanMode.ACCURATE,
         tryRotate = true,
@@ -281,10 +447,11 @@ internal object BarcodeDecoderProfiles {
         tryDownscale = mode == ScanMode.ACCURATE,
         tryDenoise = false,
         binarizer = BarcodeReader.Binarizer.LOCAL_AVERAGE,
-        maxNumberOfSymbols = 1,
+        maxNumberOfSymbols = maxSymbols,
         // PLAIN keeps decoded data and GS1 separators rather than HRI presentation markup.
         textMode = BarcodeReader.TextMode.PLAIN,
     )
 
+    /** Enables ZXing's slower search only in Accurate mode. */
     fun javaTryHarder(mode: ScanMode): Boolean = mode == ScanMode.ACCURATE
 }

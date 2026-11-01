@@ -1,4 +1,4 @@
-// Copyright 2026 Amanda Hernow. Licensed under the Apache License, Version 2.0.
+// Copyright 2026 Amanda Hernow. Licensed under PolyForm Noncommercial 1.0.0.
 package net.hernow.barkey
 
 import android.content.Context
@@ -135,6 +135,10 @@ internal class AboutHelpPanel(
                 R.string.help_scan_mode_accurate,
                 R.string.help_tap_to_focus,
                 R.string.help_torch,
+                R.string.help_preview,
+                R.string.help_focus_region,
+                R.string.help_single_scan,
+                R.string.help_extended_combinations,
             ).forEach { addBody(context, section, it) }
             addBody(context, section, R.string.help_navigation_note)
         }
@@ -154,6 +158,7 @@ internal class AboutHelpPanel(
             addExternalLink(context, section, R.string.help_androidx_link, ANDROIDX_URL)
             addBody(context, section, R.string.help_guava_credit)
             addExternalLink(context, section, R.string.help_guava_link, GUAVA_URL)
+            addExternalLink(context, section, R.string.help_polyform_license_link, POLYFORM_LICENSE_URL)
             addExternalLink(context, section, R.string.help_apache_license_link, APACHE_LICENSE_URL)
             addExternalLink(context, section, R.string.help_bsd_license_link, BSD_LICENSE_URL)
             addExternalLink(context, section, R.string.help_repository, GITHUB_URL)
@@ -205,6 +210,7 @@ internal class AboutHelpPanel(
         applyTheme(context)
     }
 
+    /** Reapplies theme colours after Android changes appearance. */
     fun applyTheme(context: Context) {
         root.setBackgroundColor(ContextCompat.getColor(context, R.color.keyboard_background))
         val primary = ContextCompat.getColor(context, R.color.keyboard_text_primary)
@@ -222,6 +228,7 @@ internal class AboutHelpPanel(
         }
     }
 
+    /** Adds one titled group to the scrollable help panel. */
     private fun addSection(context: Context, titleId: Int, addContent: (LinearLayout) -> Unit) {
         val section = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -238,6 +245,7 @@ internal class AboutHelpPanel(
         sectionViews += section
     }
 
+    /** Adds a privacy point without reading from the active text field. */
     private fun addPrivacyItem(context: Context, section: LinearLayout, titleId: Int, bodyId: Int) {
         val title = text(context, titleId, 14f, bold = true).apply { tag = TITLE_TAG }
         section.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -251,6 +259,7 @@ internal class AboutHelpPanel(
         })
     }
 
+    /** Opens a project link outside the keyboard. */
     private fun addExternalLink(context: Context, section: LinearLayout, labelId: Int, url: String) {
         val link = text(context, labelId, 14f).apply {
             paint.isUnderlineText = true
@@ -296,6 +305,7 @@ internal class AboutHelpPanel(
         const val PRIVACY_URL = "https://amandahernow.github.io/barkey/privacy-policy.html"
         const val GITHUB_URL = "https://github.com/AmandaHernow/barkey"
         const val LICENSE_URL = "https://github.com/AmandaHernow/barkey/blob/main/LICENSE"
+        const val POLYFORM_LICENSE_URL = "https://polyformproject.org/licenses/noncommercial/1.0.0/"
         const val ZXING_CPP_URL = "https://github.com/zxing-cpp/zxing-cpp"
         const val ZXING_JAVA_URL = "https://github.com/zxing/zxing"
         const val ANDROIDX_URL = "https://github.com/androidx/androidx"

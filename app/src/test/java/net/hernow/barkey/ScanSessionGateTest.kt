@@ -4,6 +4,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks per-session duplicate suppression and callback validity. */
 class ScanSessionGateTest {
     @Test
     fun repeatedValueIsSuppressedForOneSecondAndThenAllowed() {

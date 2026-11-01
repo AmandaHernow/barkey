@@ -2,6 +2,7 @@ package net.hernow.barkey
 
 import android.os.SystemClock
 
+/** Uses elapsed time so clock changes do not affect a decode measurement. */
 internal fun interface MonotonicClock {
     fun nowNanos(): Long
 }
@@ -14,6 +15,7 @@ internal class DecodeTimingRecorder(
     var lastDurationNanos: Long = 0L
         private set
 
+    /** Measures a decode without keeping the frame or decoded value. */
     fun <T> measure(block: () -> T): T {
         val startedAt = clock.nowNanos()
         try {

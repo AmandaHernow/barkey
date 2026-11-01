@@ -4,6 +4,7 @@ import android.view.KeyEvent
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** Checks managed scan suffix values and their safe default. */
 class ScanSuffixTest {
     @Test
     fun missingAndInvalidManagedValuesDefaultToNoSuffix() {

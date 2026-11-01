@@ -1,6 +1,7 @@
 package net.hernow.barkey
 
 import com.google.zxing.BarcodeFormat as JavaBarcodeFormat
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -8,7 +9,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import zxingcpp.BarcodeReader
 
+/** Checks supported formats and native-to-Java fallback rules. */
 class BarcodeDecoderTest {
+    @Test fun cameraLuminanceRotationSupportsAllCameraRightAngles() {
+        val pixels = byteArrayOf(1, 2, 3, 4, 5, 6)
+        val expected = mapOf(
+            0 to (2 to 3) to byteArrayOf(1, 2, 3, 4, 5, 6),
+            90 to (3 to 2) to byteArrayOf(5, 3, 1, 6, 4, 2),
+            180 to (2 to 3) to byteArrayOf(6, 5, 4, 3, 2, 1),
+            270 to (3 to 2) to byteArrayOf(2, 4, 6, 1, 3, 5),
+        )
+
+        expected.forEach { (key, expectedPixels) ->
+            val (rotation, dimensions) = key
+            val result = rotateLuminance(pixels, 2, 3, rotation)!!
+            assertEquals(dimensions.first, result.width)
+            assertEquals(dimensions.second, result.height)
+            assertArrayEquals(expectedPixels, result.pixels)
+        }
+    }
+
+    @Test fun cameraLuminanceRotationRejectsInvalidInput() {
+        assertNull(rotateLuminance(byteArrayOf(1, 2), 2, 2, 0))
+        assertNull(rotateLuminance(byteArrayOf(1, 2, 3, 4), 2, 2, 45))
+    }
+
     @Test fun fastAndAccurateNativeProfilesHaveSameFormatsAndRequestedTradeoffs() {
         val fast = BarcodeDecoderProfiles.nativeOptions(ScanMode.FAST)
         val accurate = BarcodeDecoderProfiles.nativeOptions(ScanMode.ACCURATE)
@@ -27,6 +52,7 @@ class BarcodeDecoderTest {
         assertTrue(accurate.tryDownscale)
         assertFalse(accurate.tryDenoise)
         assertEquals(1, accurate.maxNumberOfSymbols)
+        assertEquals(8, BarcodeDecoderProfiles.nativeOptions(ScanMode.ACCURATE, 8).maxNumberOfSymbols)
         assertEquals(BarcodeReader.TextMode.PLAIN, accurate.textMode)
         assertFalse(BarcodeDecoderProfiles.javaTryHarder(ScanMode.FAST))
         assertTrue(BarcodeDecoderProfiles.javaTryHarder(ScanMode.ACCURATE))

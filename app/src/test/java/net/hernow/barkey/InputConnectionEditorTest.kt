@@ -11,6 +11,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Checks editing, Undo and navigation against a fake editor. */
 class InputConnectionEditorTest {
     private val editor = InputConnectionEditor()
 
@@ -20,6 +21,50 @@ class InputConnectionEditorTest {
         assertEquals("ABC123", connection.value())
         assertTrue(editor.undo(connection, 1L))
         assertEquals("", connection.value())
+    }
+
+    @Test fun repeatedScansCanBeUndoneOneAtATime() {
+        val connection = FakeEditorConnection()
+        repeat(10) { assertTrue(editor.commitScan(connection, 1L, "ABC123", true)) }
+        assertEquals("ABC123".repeat(10), connection.value())
+
+        repeat(9) {
+            assertTrue(editor.canUndo(connection, 1L))
+            assertTrue(editor.undo(connection, 1L))
+        }
+        assertEquals("ABC123", connection.value())
+        assertTrue(editor.canUndo(connection, 1L))
+        assertTrue(editor.undo(connection, 1L))
+        assertEquals("", connection.value())
+        assertFalse(editor.canUndo(connection, 1L))
+    }
+
+    @Test fun singleScanCanRunAgainWhenUndoRestoresAnEmptyField() {
+        val connection = FakeEditorConnection()
+        val gate = SingleScanGate()
+        val field = EditorFieldKey(connection.identity, "example.app", 1)
+        gate.moveTo(field)
+        assertTrue(gate.consume())
+
+        assertTrue(editor.commitScan(connection, 1L, "QR-123", recordUndo = true))
+        assertTrue(editor.undo(connection, 1L))
+        assertTrue(editor.isFieldEmpty(connection))
+        assertTrue(gate.rearmAfterUndo(editor.isFieldEmpty(connection)))
+        gate.moveTo(field)
+        assertFalse(gate.isConsumed())
+    }
+
+    @Test fun singleScanStaysUsedWhenUndoRestoresEarlierFieldText() {
+        val connection = FakeEditorConnection("existing")
+        val gate = SingleScanGate()
+        gate.moveTo(EditorFieldKey(connection.identity, "example.app", 1))
+        assertTrue(gate.consume())
+
+        assertTrue(editor.commitScan(connection, 1L, "QR-123", recordUndo = true))
+        assertTrue(editor.undo(connection, 1L))
+        assertFalse(editor.isFieldEmpty(connection))
+        assertFalse(gate.rearmAfterUndo(editor.isFieldEmpty(connection)))
+        assertTrue(gate.isConsumed())
     }
 
     @Test fun scanIsUndoableWhenFinishComposingReturnsFalseButInsertionVerifies() {

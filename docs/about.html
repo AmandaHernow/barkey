@@ -8,7 +8,7 @@
   <link rel="canonical" href="https://amandahernow.github.io/barkey/about.html">
   <meta property="og:type" content="website">
   <meta property="og:title" content="About BarKey | Amanda Hernow">
-  <meta property="og:description" content="Learn why I built BarKey, how it works, and the free and open-source principles behind the Android barcode and QR scanner keyboard.">
+  <meta property="og:description" content="Learn why I built BarKey, how it works, its personal-use licence, and the source behind the Android barcode and QR scanner keyboard.">
   <meta property="og:url" content="https://amandahernow.github.io/barkey/about.html">
   <meta name="theme-color" content="#F3F8F8">
   <meta name="theme-color" content="#101B1E" media="(prefers-color-scheme: dark)">
@@ -146,11 +146,11 @@
   <header class="hero">
     <div class="hero-inner">
       <div class="hero-copy">
-        <span class="eyebrow">Free · Offline · Open source</span>
+        <span class="eyebrow">Free for personal use · Offline · Source available</span>
         <h1>About BarKey</h1>
         <p>A barcode and QR scanner built into an Android keyboard, so a scan can go straight into the field you are using.</p>
         <div class="hero-actions"><a class="button-link primary" href="https://github.com/AmandaHernow/barkey">View BarKey on GitHub</a><a class="button-link" href="privacy-policy.html">Read the Privacy Policy</a></div>
-        <div class="hero-facts"><span>No account</span><span>No ads or tracking</span><span>On-device scanning</span><span>Apache 2.0</span></div>
+        <div class="hero-facts"><span>No account</span><span>No ads or tracking</span><span>On-device scanning</span><span>Personal use</span></div>
       </div>
       <figure class="hero-portrait">
         <div class="hero-photo-frame"><img class="hero-photo" src="assets/amanda.jpg" alt="Amanda Hernow, independent developer of BarKey" width="640" height="640" fetchpriority="high"></div>
@@ -162,7 +162,7 @@
     <div class="content-flow">
       <section class="card card-accent" aria-labelledby="what">
         <span class="section-kicker">About the project</span><h2 id="what">A camera scanner where you type</h2>
-        <p>BarKey is a free Android Input Method Editor (IME). After you enable it in Android settings and select it from the keyboard picker, focus a text field and point the rear camera at a barcode. BarKey decodes each frame on the device and inserts the result at the active cursor through Android’s input-method connection. It does not use the clipboard or keep a scan history.</p>
+        <p>BarKey is a free-for-personal-use Android Input Method Editor (IME). After you enable it in Android settings and select it from the keyboard picker, focus a text field and point the rear camera at a barcode. BarKey decodes each frame on the device and inserts the result at the active cursor through Android’s input-method connection. It does not use the clipboard or keep a scan history.</p>
         <p>Fast mode is the default for ordinary printed codes. Accurate mode applies additional processing for difficult, angled, damaged, or inverted labels and can take longer. Tap the preview to request focus and exposure at that point; a torch control appears when the camera supports flash.</p>
       </section>
       <section class="card" aria-labelledby="features"><span class="section-kicker">Features</span><h2 id="features">Scanning and editing tools</h2>
@@ -170,10 +170,12 @@
           <li>QR Code, Micro QR, rMQR, Data Matrix, Aztec, PDF417, MicroPDF417 and MaxiCode.</li>
           <li>UPC-A, UPC-E, EAN-8, EAN-13, Code 39, Code 93, Code 128, ITF and Codabar.</li>
           <li>GS1 DataBar (RSS-14) and GS1 DataBar Expanded (RSS Expanded), including Omni, Stacked, Stacked Omni, Limited and Expanded Stacked variants.</li>
-          <li>One-level guarded Undo, repeating Backspace, Space, Left, Right, Tab and Enter controls.</li>
+          <li>Guarded Undo for up to 20 recent scans or Space insertions, repeating Backspace, Space, Left, Right, Tab and Enter controls.</li>
+          <li>Optional Preview to choose among up to eight detected codes, Focus to restrict decoding to a large, movable and resizable area, and Single Scan to allow one successful insertion per recognised text field.</li>
           <li>Docked, resizable keyboard with portrait and landscape layouts and light and dark appearance.</li>
         </ul>
-        <p>Supported formats are configured in the app. Camera behaviour and editor actions can vary by device and the application containing the text field.</p>
+        <p>Preview pauses automatic insertion until you select a detected value. Suggestions expire when codes are no longer detected and cannot be selected after their editor or scanner context changes. Focus starts with a large scan area, can be dragged and resized with its small see-through corner arrow, and can be reset by long-pressing Focus. Focus works with Preview or Single Scan; Preview and Single Scan cannot be used together. Focus decodes only inside the selected crop using the chosen scan mode. Keep the full code and a little clear space around it inside the region; enlarge the area if a code is missed. Single Scan allows one successful insertion and permits another scan when BarKey recognises a different field. Undoing a scan makes an otherwise empty field available again. Some apps do not expose enough information for BarKey to recognise every field change. Supported formats are configured in the app; camera behaviour and editor actions can vary by device and host application.</p>
+        <p>BarKey is designed for personal use on Android phones and tablets. It can also run on shared or managed Android devices, including devices enrolled in Microsoft Intune. The first-run terms limit use of the app to private purposes; work use needs written permission. Companies can request a commercial version or approval at <a href="mailto:barkey.support@hernow.net">barkey.support@hernow.net</a>. Managed-device deployment is not a main project focus and has not been validated.</p>
       </section>
       <section class="card" aria-labelledby="why"><span class="section-kicker">The thinking behind it</span><h2 id="why">Why I built BarKey</h2>
         <p>BarKey started with a simple idea. I wanted to scan a barcode and have the result go straight into whatever text field I was already using, without switching between applications or copying and pasting.</p>
@@ -186,14 +188,14 @@
         <p>I’m tired of seeing everyday software turn into yet another monthly payment. It sometimes feels as though every little tool now needs a subscription, an account or some kind of paid upgrade before you’re allowed to use it properly.</p>
         <p>I understand that developing software takes time and resources, but I don’t believe that means every useful application needs to become a subscription service.</p>
         <p>I want to do my part in pushing back against that culture.</p>
-        <p>That’s one of the reasons I create free and open-source software. I want people to be able to download an application, use it for what it was made for, and not have to worry about recurring payments, advertisements or features hidden behind a paywall.</p>
+        <p>That’s one of the reasons I create software people can use without recurring payments, advertisements or features hidden behind a paywall.</p>
         <p>I also believe that privacy shouldn’t be a premium feature. People shouldn’t have to pay extra just to avoid being tracked or having their personal information collected unnecessarily.</p>
-        <p>Making my projects open source is part of that philosophy. Anyone can inspect the code, see how the application works and, within the terms of its licence, make improvements or build upon it.</p>
+        <p>Publishing source code is part of that philosophy. Anyone can inspect how an application works and, within its licence terms, make improvements or build upon it.</p>
         <p>I don’t expect my projects to change the software industry, but I can at least contribute something different.</p>
-        <p>BarKey is one of those contributions. It’s free, open source, and I intend to keep it that way.</p>
+        <p>BarKey is free for private, personal use. Its source is available under the PolyForm Noncommercial License 1.0.0. Company or workplace use, commercial activity and paid redistribution need my written approval. Organisations should contact me before installing or testing BarKey for work or evaluation; there is no company trial or scan allowance. Request a commercial version or permission at <a href="mailto:barkey.support@hernow.net">barkey.support@hernow.net</a>.</p>
       </section>
       <section class="card" aria-labelledby="privacy"><span class="section-kicker">Privacy by design</span><h2 id="privacy">Local scanning, clear boundaries</h2>
-        <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan and Undo data is held in memory only as needed by the active input session.</p>
+        <p>BarKey’s source manifest removes Internet and network-state permissions. Camera frames and barcode decoding stay on the device. The app has no accounts, analytics, advertisements, tracking, or permanent scan history. Temporary scan values, Preview suggestions, duplicate-suppression state and up to 20 guarded Undo records are held in memory only as needed by the active input session.</p>
         <a href="privacy-policy.html">Read the Android app Privacy Policy</a>
       </section>
       <section class="card developer-card" aria-labelledby="developer">
@@ -203,16 +205,17 @@
           <p>I like taking something that feels unnecessarily complicated and finding a way to make it simpler. That’s often where my projects begin.</p>
           <p>I believe software should be useful, accessible and honest about what it does. I don’t like unnecessary subscriptions, intrusive advertising or applications that collect more information than they need.</p>
           <p>That’s why I try to build my projects around simplicity, privacy and transparency.</p>
-          <p>I make my applications available for free, and I believe sharing the source code is an important part of being transparent about how software works.</p>
+          <p>I make my applications available for free personal use, and I believe publishing source code is an important part of being transparent about how software works.</p>
           <p>I’m not trying to build a collection of subscription services. I want to create tools that people can actually use without worrying about what they’ll have to pay for next.</p>
           <p>BarKey is one of those projects, and you can find some of my other work below.</p>
         </div>
       </section>
-      <section class="card" aria-labelledby="origin"><span class="section-kicker">Open source</span><h2 id="origin">Open Source &amp; Credits</h2>
-        <p>BarKey — developed by Amanda Hernow — is licensed under the Apache License 2.0. Barcode decoding runs locally with <a href="https://github.com/zxing-cpp/zxing-cpp">ZXing-C++ Android 3.1.1</a> as the primary decoder and <a href="https://github.com/zxing/zxing">ZXing Core 3.5.4</a> as a Java fallback. Both projects use Apache License 2.0.</p>
+      <section class="card" aria-labelledby="origin"><span class="section-kicker">Source available</span><h2 id="origin">Source, Licence &amp; Credits</h2>
+        <p>BarKey — developed by Amanda Hernow — is available under the <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/">PolyForm Noncommercial License 1.0.0</a>. It permits non-commercial source use as defined by the licence. The app also requires acceptance of first-run terms limiting it to private use; work use, commercial activity and paid redistribution need my prior written approval. Companies should contact me before installing or testing BarKey for work or evaluation; the app has no company trial or scan allowance. Request permission or a commercial version at <a href="mailto:barkey.support@hernow.net">barkey.support@hernow.net</a>. The source is public, but this is not an OSI-defined open-source licence because commercial use is restricted. Earlier copies released under Apache License 2.0 remain under those original terms.</p>
+        <p>Barcode decoding runs locally with <a href="https://github.com/zxing-cpp/zxing-cpp">ZXing-C++ Android 3.1.1</a> as the primary decoder and <a href="https://github.com/zxing/zxing">ZXing Core 3.5.4</a> as a Java fallback. Both projects use Apache License 2.0.</p>
         <p><a href="https://github.com/androidx/androidx">AndroidX CameraX</a> provides camera capture and preview; AndroidX Core and Lifecycle provide Android application support. <a href="https://github.com/google/guava">Google Guava 33.7.2-android</a> is a CameraX support dependency pinned by BarKey. These libraries use Apache License 2.0; CameraX camera-core artifact metadata also declares BSD-3-Clause material. The app’s test-only JUnit 4.13.2 dependency is licensed under <a href="https://www.eclipse.org/legal/epl-v10.html">Eclipse Public License 1.0</a>.</p>
         <p>See the project <a href="https://github.com/AmandaHernow/barkey/blob/main/NOTICE">NOTICE</a> for attribution information, and its <a href="https://github.com/AmandaHernow/barkey/blob/main/LICENSE">LICENSE</a> for the licence applying to BarKey.</p>
-        <div class="project-links"><a href="https://github.com/AmandaHernow/barkey">BarKey source on GitHub</a><a href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 licence</a><a href="https://opensource.org/license/bsd-3-clause/">BSD 3-Clause licence</a><a href="https://github.com/zxing-cpp/zxing-cpp/blob/master/LICENSE">ZXing-C++ licence</a><a href="https://github.com/zxing/zxing/blob/master/LICENSE">ZXing Core licence</a><a href="https://github.com/google/guava/blob/master/LICENSE">Guava licence</a></div>
+        <div class="project-links"><a href="https://github.com/AmandaHernow/barkey">BarKey source on GitHub</a><a href="https://polyformproject.org/licenses/noncommercial/1.0.0/">PolyForm Noncommercial licence</a><a href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 third-party licence</a><a href="https://opensource.org/license/bsd-3-clause/">BSD 3-Clause licence</a><a href="https://github.com/zxing-cpp/zxing-cpp/blob/master/LICENSE">ZXing-C++ licence</a><a href="https://github.com/zxing/zxing/blob/master/LICENSE">ZXing Core licence</a><a href="https://github.com/google/guava/blob/master/LICENSE">Guava licence</a></div>
       </section>
       <section class="projects-section" aria-labelledby="projects">
         <div class="projects-heading"><span class="section-kicker">Also by me</span><h2 id="projects">Other projects</h2><p>Independent projects with their own purposes, features, and privacy details.</p></div>
@@ -245,7 +248,7 @@
       </section>
       <section class="card support-card" aria-labelledby="support">
         <div class="support-copy"><span class="section-kicker">Optional support</span><h2 id="support">Help keep development going</h2>
-          <p>All my applications are free to use, and BarKey is no exception.</p>
+          <p>BarKey is free for private, personal use. Work or commercial use requires my written approval. Contact <a href="mailto:barkey.support@hernow.net">barkey.support@hernow.net</a> to request a commercial version or permission.</p>
           <p>I develop these projects because I enjoy creating useful software and believe that not everything needs to come with a price tag.</p>
           <p>If you find BarKey useful and would like to support its continued development, you’re welcome to buy me a coffee through PayPal.</p>
           <p>It’s completely optional. There are no paid features, subscriptions or benefits reserved for people who donate.</p>
@@ -261,6 +264,6 @@
       </section>
     </div>
   </main>
-  <footer><nav class="footer-nav" aria-label="Footer navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html">Privacy Policy</a><a href="sitemap.html">Sitemap</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></nav>© 2026 Amanda Hernow · BarKey is open source under Apache 2.0.</footer>
+  <footer><nav class="footer-nav" aria-label="Footer navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="privacy-policy.html">Privacy Policy</a><a href="sitemap.html">Sitemap</a><a href="https://github.com/AmandaHernow/barkey">GitHub</a></nav>© 2026 Amanda Hernow · BarKey is free for private, personal use under PolyForm Noncommercial 1.0.0.</footer>
 </body>
 </html>

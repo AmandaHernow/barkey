@@ -9,6 +9,7 @@ internal class ScanSessionGate(
     private var lastAcceptedValue: String? = null
     private var lastAcceptedAtMillis = 0L
 
+    /** Starts a fresh input session and clears its duplicate-suppression value. */
     fun beginSession(): Long {
         generation += 1
         active = true
@@ -16,14 +17,17 @@ internal class ScanSessionGate(
         return generation
     }
 
+    /** Invalidates queued callbacks and releases the last accepted scan value. */
     fun endSession() {
         generation += 1
         active = false
         clearLastValue()
     }
 
+    /** Rejects work captured by an earlier editor session. */
     fun isCurrent(sessionId: Long): Boolean = active && sessionId == generation
 
+    /** Rejects the same value during the short repeat window. */
     fun shouldAccept(sessionId: Long, value: String, nowMillis: Long): Boolean {
         if (!isCurrent(sessionId) || value.isEmpty()) return false
 
@@ -37,6 +41,7 @@ internal class ScanSessionGate(
         return true
     }
 
+    /** Releases the only scan value kept for duplicate suppression. */
     private fun clearLastValue() {
         lastAcceptedValue = null
         lastAcceptedAtMillis = 0L

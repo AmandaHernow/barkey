@@ -1,10 +1,12 @@
 // Copyright 2026 Amanda Hernow. Modified for BarKey.
 buildscript {
     dependencies {
+        // Keep the Kotlin plugin version in one place for the app.
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21'
     }
 }
 
 plugins {
+    // The app module applies the Android plugin at this version.
     id 'com.android.application' version '9.5.0' apply false
 }

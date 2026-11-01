@@ -8,6 +8,7 @@ android {
     compileSdk = 37
     buildToolsVersion = '36.0.0'
 
+    // These values identify the public BarKey app and supported Android versions.
     defaultConfig {
         applicationId 'net.hernow.barkey'
         minSdk = 24
@@ -16,6 +17,7 @@ android {
         versionName = '1.0.1'
     }
 
+    // Keep Java and Kotlin bytecode targets aligned.
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -34,12 +36,14 @@ android {
         }
     }
 
+    // Unit tests use default values for Android APIs they do not mock.
     testOptions {
         unitTests.returnDefaultValues = true
     }
 }
 
 dependencies {
+    // CameraX supplies the live preview and camera frames; ZXing decodes locally.
     implementation 'androidx.core:core:1.19.1'
     implementation 'androidx.core:core-ktx:1.19.1'
     implementation 'androidx.camera:camera-camera2:1.6.2'
