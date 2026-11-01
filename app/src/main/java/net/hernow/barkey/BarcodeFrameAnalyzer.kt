@@ -15,6 +15,7 @@ internal class BarcodeFrameAnalyzer(
     private val previewEnabled: () -> Boolean = { false },
     private val focusEnabled: () -> Boolean = { false },
     private val scanCrop: (ImageProxy, Long) -> Rect? = { _, _ -> null },
+    private val focusDecodeDiagnostic: (ScanMode, String) -> Unit = { _, _ -> },
     private val settingsGeneration: () -> Long = { 0L },
     private val shouldDecode: () -> Boolean = { true },
     private val onDecoded: (sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long, values: List<String>) -> Unit,
@@ -43,6 +44,16 @@ internal class BarcodeFrameAnalyzer(
                     }
                 }
             }
+        }
+        if (focused && decodeAllowed) {
+            focusDecodeDiagnostic(
+                snapshot.mode,
+                when (outcome) {
+                    is DecodeOutcome.Value, is DecodeOutcome.Values -> "decoded"
+                    DecodeOutcome.NotFound -> "no barcode found in crop"
+                    DecodeOutcome.Failure -> "decoder failed on crop"
+                },
+            )
         }
         when (outcome) {
             is DecodeOutcome.Value -> onDecoded(sessionId, cameraGeneration, snapshot.generation, settings, listOf(outcome.text))

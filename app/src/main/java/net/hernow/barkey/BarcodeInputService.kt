@@ -122,6 +122,7 @@ class BarcodeInputService : InputMethodService() {
     @Volatile private var previewTransformSnapshot: PreviewTransformSnapshot? = null
     private var transformRefreshRunnable: Runnable? = null
     private var lastFocusMappingLogAtMs = 0L
+    private var lastFocusDecodeLogAtMs = 0L
     private var torchButton: ImageButton? = null
     private var activeCamera: Camera? = null
     private var developerSignature: TextView? = null
@@ -1604,8 +1605,9 @@ class BarcodeInputService : InputMethodService() {
             focusRegionState.snapshotFor(expectedSettingsGeneration)?.region != regionSnapshot.region
         ) return reportFocusMappingState("focus region changed during mapping")
         reportFocusMappingState(
-            "crop ${mappedCrop.right - mappedCrop.left}x${mappedCrop.bottom - mappedCrop.top} " +
-                "in ${image.width}x${image.height} frame",
+            "crop (${mappedCrop.left},${mappedCrop.top})-(${mappedCrop.right},${mappedCrop.bottom}) " +
+                "of ${image.width}x${image.height}, frame crop=${image.cropRect}, " +
+                "rotation=${image.imageInfo.rotationDegrees}",
             warning = false,
         )
         return Rect(mappedCrop.left, mappedCrop.top, mappedCrop.right, mappedCrop.bottom)
@@ -1619,6 +1621,15 @@ class BarcodeInputService : InputMethodService() {
             if (warning) Log.w(TAG, "Focus mapping: $message") else Log.d(TAG, "Focus mapping: $message")
         }
         return null
+    }
+
+    /** Reports the selected scan mode and crop result without logging barcode contents. */
+    private fun reportFocusDecodeState(mode: ScanMode, result: String) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastFocusDecodeLogAtMs >= FOCUS_MAPPING_LOG_INTERVAL_MS) {
+            lastFocusDecodeLogAtMs = now
+            Log.d(TAG, "Focus decode: mode=$mode, result=$result")
+        }
     }
 
     /** Identifies the editor without reading or storing its text. */
@@ -1701,6 +1712,9 @@ class BarcodeInputService : InputMethodService() {
                             previewEnabled = { previewEnabled },
                             focusEnabled = { focusEnabled },
                             scanCrop = ::mappedScanCrop,
+                            focusDecodeDiagnostic = { mode, result ->
+                                reportFocusDecodeState(mode, result)
+                            },
                             settingsGeneration = { extendedGeneration },
                             shouldDecode = {
                                 SingleScanDecodePolicy.shouldDecode(singleScanEnabled, singleScanGate.isConsumed())
