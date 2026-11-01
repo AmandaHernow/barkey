@@ -2,6 +2,7 @@ package net.hernow.barkey
 
 import android.graphics.ImageFormat
 import android.graphics.Rect
+import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.BarcodeFormat as JavaBarcodeFormat
@@ -175,6 +176,7 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
             }
         } catch (error: Throwable) {
             if (error is VirtualMachineError || error is ThreadDeath) throw error
+            Log.e(TAG, "Crop decoding failed (${error.javaClass.simpleName})")
             DecodeOutcome.Failure
         }
     }
@@ -314,6 +316,7 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     }
 
     private companion object {
+        const val TAG = "BarcodeDecoder"
         val NATIVE_YUV_FORMATS = setOf(
             ImageFormat.YUV_420_888,
             ImageFormat.YUV_422_888,
