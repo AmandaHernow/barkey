@@ -21,6 +21,8 @@
 /.cxx/
 *.apk
 *.aab
+*.apks
+*.idsig
 *.ap_
 *.dex
 *.class
@@ -34,8 +36,9 @@
 *.pfx
 *.key
 *.pem
-/key.properties
-/keystore.properties
+**/key.properties
+**/keystore.properties
+**/signing.properties
 .env
 .env.*
 !.env.example
