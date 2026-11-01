@@ -1,4 +1,4 @@
-// Copyright 2026 Amanda Hernow. Licensed under the Apache License, Version 2.0.
+// Copyright 2026 Amanda Hernow. Licensed under PolyForm Noncommercial 1.0.0.
 package net.hernow.barkey
 
 /** The settings that Android lets an app observe for its own input method. */

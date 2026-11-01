@@ -8,6 +8,13 @@ import org.junit.Test
 
 /** Checks Preview, Focus and Single Scan state and geometry. */
 class ExtendedScanStateTest {
+    @Test fun previewAndSingleScanCannotBeEnabledAtTheSameTime() {
+        assertTrue(ScanOptionPolicy.canEnablePreview(singleScanEnabled = false))
+        assertFalse(ScanOptionPolicy.canEnablePreview(singleScanEnabled = true))
+        assertTrue(ScanOptionPolicy.canEnableSingleScan(previewEnabled = false))
+        assertFalse(ScanOptionPolicy.canEnableSingleScan(previewEnabled = true))
+    }
+
     @Test fun previewSuppressesAutomaticInsertionAndAllowsOnlyLiveDistinctCandidates() {
         val state = PreviewCandidateState(expiryMillis = 1_000)
         assertTrue(PreviewDeliveryPolicy.mayInsertAutomatically(previewEnabled = false))
@@ -102,8 +109,7 @@ class ExtendedScanStateTest {
         val cropWidth = 400f
         val cropHeight = 200f
 
-        // Inject the same crop-local transform callback used to wrap CameraX CoordinateTransform
-        // in production. These affine equivalents exercise the mapper's rotation/clipping/offset.
+        // These affine transforms exercise the same preview-to-buffer mapping used in production.
         val expected = mapOf(
             0 to FocusRegionGeometry.ImageRect(111, 37, 351, 137),
             90 to FocusRegionGeometry.ImageRect(71, 57, 271, 177),
@@ -117,10 +123,10 @@ class ExtendedScanStateTest {
                 val r = rect.right / previewWidth
                 val b = rect.bottom / previewHeight
                 when (rotation) {
-                    0 -> FocusRegionGeometry.RectF(l * cropWidth, t * cropHeight, r * cropWidth, b * cropHeight)
-                    90 -> FocusRegionGeometry.RectF(t * cropWidth, (1f - r) * cropHeight, b * cropWidth, (1f - l) * cropHeight)
-                    180 -> FocusRegionGeometry.RectF((1f - r) * cropWidth, (1f - b) * cropHeight, (1f - l) * cropWidth, (1f - t) * cropHeight)
-                    270 -> FocusRegionGeometry.RectF((1f - b) * cropWidth, l * cropHeight, (1f - t) * cropWidth, r * cropHeight)
+                    0 -> FocusRegionGeometry.RectF(crop.left + l * cropWidth, crop.top + t * cropHeight, crop.left + r * cropWidth, crop.top + b * cropHeight)
+                    90 -> FocusRegionGeometry.RectF(crop.left + t * cropWidth, crop.top + (1f - r) * cropHeight, crop.left + b * cropWidth, crop.top + (1f - l) * cropHeight)
+                    180 -> FocusRegionGeometry.RectF(crop.left + (1f - r) * cropWidth, crop.top + (1f - b) * cropHeight, crop.left + (1f - l) * cropWidth, crop.top + (1f - t) * cropHeight)
+                    270 -> FocusRegionGeometry.RectF(crop.left + (1f - b) * cropWidth, crop.top + l * cropHeight, crop.left + (1f - t) * cropWidth, crop.top + r * cropHeight)
                     else -> error("Unsupported test rotation $rotation")
                 }
             }
@@ -133,9 +139,8 @@ class ExtendedScanStateTest {
         val mapped = FocusRegionGeometry.mapPreviewRectToImageCrop(
             FocusRegionGeometry.RectF(-20f, 10f, 30f, 60f), crop,
         ) { rect ->
-            // Different preview/analysis aspect ratios and a PreviewView resize are represented
-            // by CameraX's current transform; its result must remain crop-local.
-            FocusRegionGeometry.RectF(rect.left * 4f, rect.top * 2f, rect.right * 4f, rect.bottom * 2f)
+            // Different preview/analysis aspect ratios and a PreviewView resize are in buffer space.
+            FocusRegionGeometry.RectF(20f + rect.left * 4f, 10f + rect.top * 2f, 20f + rect.right * 4f, 10f + rect.bottom * 2f)
         }
         assertEquals(FocusRegionGeometry.ImageRect(20, 30, 140, 130), mapped)
         assertNull(FocusRegionGeometry.mapPreviewRectToImageCrop(
@@ -362,16 +367,13 @@ class ExtendedScanStateTest {
         assertFalse(gate.isConsumed())
     }
 
-    @Test fun singleScanPreviewFailedSelectionAndSuffixDoNotConsumeOrResetAllowance() {
-        val preview = PreviewCandidateState()
+    @Test fun singleScanConsumesOnlyAfterSuccessfulInsertionAndCanReset() {
         val single = SingleScanGate()
         val connection = Any()
         single.moveTo(EditorFieldKey(connection, "example.app", 5))
-        preview.update(listOf("chosen", "other"), 100)
-        assertTrue(PreviewDeliveryPolicy.maySelect(true, preview, "chosen", 100))
         assertFalse(single.isConsumed()) // rejected editor insertion leaves the allowance available
-        assertTrue(single.consume()) // successful preview insertion
-        assertFalse(single.consume()) // repeated Preview selection is rejected in the consumed field
+        assertTrue(single.consume()) // successful insertion uses the allowance
+        assertFalse(single.consume()) // repeated scans are rejected in the consumed field
         // Enter/Tab has no effect unless Android later reports a different field.
         assertTrue(single.isConsumed())
         assertFalse(single.moveTo(EditorFieldKey(Any(), "example.app", 5)))

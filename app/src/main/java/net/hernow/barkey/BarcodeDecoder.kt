@@ -109,7 +109,7 @@ private class NativeFallbackForFrame : RuntimeException()
 internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     // CameraX runs analysis on one serial executor, so each mode can reuse its readers.
     private val multiNativeReaders = mutableMapOf<ScanMode, BarcodeReader>()
-    private val javaReaders = mutableMapOf<ScanMode, MultiFormatReader>()
+    private val javaReaders = mutableMapOf<Pair<ScanMode, Boolean>, MultiFormatReader>()
     private val router = DecoderRouter(
         nativeFrameSupported = ::nativeCanRead,
         nativeFactory = ::createNativeDecoder,
@@ -151,7 +151,7 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     private fun decodeJavaCrop(frame: ImageProxy, mode: ScanMode, crop: Rect?, multiple: Boolean): DecodeOutcome {
         return try {
             val oriented = javaLuminanceSource(frame, crop) ?: return DecodeOutcome.NotFound
-            val reader = javaReader(mode)
+            val reader = javaReader(mode, focusCrop = crop != null)
             try {
                 val bitmap = BinaryBitmap(HybridBinarizer(oriented))
                 if (multiple) {
@@ -180,12 +180,14 @@ internal class HybridBarcodeDecoder : BarcodeFrameDecoder {
     }
 
     /** Creates each Java reader once and reuses it on CameraX's single analysis thread. */
-    private fun javaReader(mode: ScanMode): MultiFormatReader = javaReaders.getOrPut(mode) {
+    private fun javaReader(mode: ScanMode, focusCrop: Boolean = false): MultiFormatReader =
+        javaReaders.getOrPut(mode to focusCrop) {
         MultiFormatReader().apply {
             setHints(
                 mapOf(
                     DecodeHintType.POSSIBLE_FORMATS to BarcodeDecoderProfiles.javaFormats,
-                    DecodeHintType.TRY_HARDER to BarcodeDecoderProfiles.javaTryHarder(mode),
+                    // Cropping removes context, so Focus always gives ZXing the slower thorough pass.
+                    DecodeHintType.TRY_HARDER to (focusCrop || BarcodeDecoderProfiles.javaTryHarder(mode)),
                 ),
             )
         }

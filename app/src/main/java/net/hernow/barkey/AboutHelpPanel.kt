@@ -1,4 +1,4 @@
-// Copyright 2026 Amanda Hernow. Licensed under the Apache License, Version 2.0.
+// Copyright 2026 Amanda Hernow. Licensed under PolyForm Noncommercial 1.0.0.
 package net.hernow.barkey
 
 import android.content.Context
@@ -158,6 +158,7 @@ internal class AboutHelpPanel(
             addExternalLink(context, section, R.string.help_androidx_link, ANDROIDX_URL)
             addBody(context, section, R.string.help_guava_credit)
             addExternalLink(context, section, R.string.help_guava_link, GUAVA_URL)
+            addExternalLink(context, section, R.string.help_polyform_license_link, POLYFORM_LICENSE_URL)
             addExternalLink(context, section, R.string.help_apache_license_link, APACHE_LICENSE_URL)
             addExternalLink(context, section, R.string.help_bsd_license_link, BSD_LICENSE_URL)
             addExternalLink(context, section, R.string.help_repository, GITHUB_URL)
@@ -304,6 +305,7 @@ internal class AboutHelpPanel(
         const val PRIVACY_URL = "https://amandahernow.github.io/barkey/privacy-policy.html"
         const val GITHUB_URL = "https://github.com/AmandaHernow/barkey"
         const val LICENSE_URL = "https://github.com/AmandaHernow/barkey/blob/main/LICENSE"
+        const val POLYFORM_LICENSE_URL = "https://polyformproject.org/licenses/noncommercial/1.0.0/"
         const val ZXING_CPP_URL = "https://github.com/zxing-cpp/zxing-cpp"
         const val ZXING_JAVA_URL = "https://github.com/zxing/zxing"
         const val ANDROIDX_URL = "https://github.com/androidx/androidx"

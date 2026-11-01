@@ -108,6 +108,15 @@ internal object PreviewDeliveryPolicy {
         maySelect(previewEnabled, candidates, value, nowMillis, selectionToken)
 }
 
+/** Keeps Preview selection and one-per-field Single Scan as separate choices. */
+internal object ScanOptionPolicy {
+    /** Preview is unavailable while Single Scan is active. */
+    fun canEnablePreview(singleScanEnabled: Boolean): Boolean = !singleScanEnabled
+
+    /** Single Scan is unavailable while Preview is active. */
+    fun canEnableSingleScan(previewEnabled: Boolean): Boolean = !previewEnabled
+}
+
 /** A field key deliberately contains no field contents. */
 internal data class EditorFieldKey(val connection: Any?, val packageName: String?, val fieldId: Int) {
     /** Android field IDs are strongest when supplied; connection identity is the fallback for ID 0. */
@@ -172,34 +181,30 @@ internal object FocusRegionGeometry {
     }
 
     /**
-     * Maps a preview rectangle using CameraX's CoordinateTransform, whose destination is crop-local
-     * when ImageProxyTransformFactory.setUsingCropRect(true). The result is then offset exactly
-     * once into ImageProxy buffer coordinates and clipped to its valid crop rectangle.
+     * Maps a preview rectangle into absolute image-buffer coordinates and clips it to the valid crop.
      */
     fun mapPreviewRectToImageCrop(
         previewRect: RectF,
         crop: ImageRect,
-        mapToCropLocal: (RectF) -> RectF,
+        mapToImageBuffer: (RectF) -> RectF,
     ): ImageRect? {
         if (crop.isEmpty || !previewRect.isFiniteAndNonEmpty()) return null
         val mapped = try {
-            mapToCropLocal(previewRect.copy())
+            mapToImageBuffer(previewRect.copy())
         } catch (_: RuntimeException) {
             return null
         }
         if (!mapped.isFiniteAndNonEmpty()) return null
-        val cropWidth = (crop.right - crop.left).toFloat()
-        val cropHeight = (crop.bottom - crop.top).toFloat()
-        val left = snapNearInteger(mapped.left).coerceIn(0f, cropWidth)
-        val top = snapNearInteger(mapped.top).coerceIn(0f, cropHeight)
-        val right = snapNearInteger(mapped.right).coerceIn(0f, cropWidth)
-        val bottom = snapNearInteger(mapped.bottom).coerceIn(0f, cropHeight)
+        val left = snapNearInteger(mapped.left).coerceIn(crop.left.toFloat(), crop.right.toFloat())
+        val top = snapNearInteger(mapped.top).coerceIn(crop.top.toFloat(), crop.bottom.toFloat())
+        val right = snapNearInteger(mapped.right).coerceIn(crop.left.toFloat(), crop.right.toFloat())
+        val bottom = snapNearInteger(mapped.bottom).coerceIn(crop.top.toFloat(), crop.bottom.toFloat())
         if (right <= left || bottom <= top) return null
         val result = ImageRect(
-            crop.left + kotlin.math.floor(left).toInt(),
-            crop.top + kotlin.math.floor(top).toInt(),
-            crop.left + kotlin.math.ceil(right).toInt(),
-            crop.top + kotlin.math.ceil(bottom).toInt(),
+            kotlin.math.floor(left).toInt(),
+            kotlin.math.floor(top).toInt(),
+            kotlin.math.ceil(right).toInt(),
+            kotlin.math.ceil(bottom).toInt(),
         )
         val clipped = ImageRect(
             result.left.coerceIn(crop.left, crop.right), result.top.coerceIn(crop.top, crop.bottom),

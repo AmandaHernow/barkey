@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Typeface
 import android.graphics.Rect
+import android.graphics.Matrix
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
@@ -53,9 +54,6 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.camera.view.transform.CoordinateTransform
-import androidx.camera.view.transform.ImageProxyTransformFactory
-import androidx.camera.view.transform.OutputTransform
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -96,11 +94,6 @@ class BarcodeInputService : InputMethodService() {
     private var activeEditorField: EditorFieldKey? = null
     private val settingsCallbackGeneration = CallbackGeneration()
     private val focusRegionState = FocusRegionState(settingsCallbackGeneration, previewCandidateState)
-    private val imageProxyTransformFactory = ImageProxyTransformFactory().apply {
-        setUsingCropRect(true)
-        setUsingRotationDegrees(false)
-    }
-
     private var cameraProvider: ProcessCameraProvider? = null
     private var previewUseCase: Preview? = null
     private var analysisUseCase: ImageAnalysis? = null
@@ -125,9 +118,10 @@ class BarcodeInputService : InputMethodService() {
     @Volatile private var focusEnabled = false
     @Volatile private var singleScanEnabled = false
     private val extendedGeneration: Long get() = settingsCallbackGeneration.current()
-    @Volatile private var previewOutputTransform: OutputTransform? = null
-    @Volatile private var previewOutputTransformSize: Pair<Int, Int>? = null
+    // Publishes the transform and its matching view size as one camera-worker-safe value.
+    @Volatile private var previewTransformSnapshot: PreviewTransformSnapshot? = null
     private var transformRefreshRunnable: Runnable? = null
+    private var lastFocusMappingLogAtMs = 0L
     private var torchButton: ImageButton? = null
     private var activeCamera: Camera? = null
     private var developerSignature: TextView? = null
@@ -140,6 +134,8 @@ class BarcodeInputService : InputMethodService() {
     private var permissionButton: Button? = null
     private var undoButton: Button? = null
     private var permissionResultReceiver: BroadcastReceiver? = null
+    private var licenseGateVisible = false
+    private var licenseAgreementLaunchRequested = false
     @Volatile
     private var currentSessionId = 0L
     @Volatile
@@ -149,12 +145,31 @@ class BarcodeInputService : InputMethodService() {
     @Volatile
     private var cameraRequestId = 0L
 
+    /** Keeps preview coordinates paired with the dimensions used to create their transform. */
+    private data class PreviewTransformSnapshot(
+        val viewToSensor: Matrix,
+        val width: Int,
+        val height: Int,
+    )
+
     /** Listens for permission results while the service is alive. */
     override fun onCreate() {
         super.onCreate()
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != PermissionState.ACTION_PERMISSION_RESULT) return
+                when (intent?.action) {
+                    PersonalUseLicense.ACTION_ACCEPTED -> {
+                        if (!PersonalUseLicense.hasAccepted(this@BarcodeInputService)) return
+                        licenseAgreementLaunchRequested = false
+                        if (licenseGateVisible) {
+                            setInputView(onCreateInputView())
+                            if (isInputViewShown && !helpVisible) startCamera(currentSessionId)
+                        }
+                        return
+                    }
+                    PermissionState.ACTION_PERMISSION_RESULT -> Unit
+                    else -> return
+                }
                 refreshPermissionUi()
                 if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                     if (isInputViewShown && !helpVisible) startCamera(currentSessionId)
@@ -162,13 +177,18 @@ class BarcodeInputService : InputMethodService() {
                 if (!isInputViewShown) requestShowScannerKeyboard()
             }
         }
-        val filter = IntentFilter(PermissionState.ACTION_PERMISSION_RESULT)
+        val filter = IntentFilter().apply {
+            addAction(PermissionState.ACTION_PERMISSION_RESULT)
+            addAction(PersonalUseLicense.ACTION_ACCEPTED)
+        }
         ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         permissionResultReceiver = receiver
     }
 
     /** Builds the docked scanner, editing controls and help panel. */
     override fun onCreateInputView(): View {
+        if (!PersonalUseLicense.hasAccepted(this)) return createLicenseRequiredView()
+        licenseGateVisible = false
         removeKeyboardLayoutListener()
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
@@ -394,7 +414,7 @@ class BarcodeInputService : InputMethodService() {
             contentDescription = getString(R.string.focus_region_accessibility)
             background = GradientDrawable().apply {
                 setColor(0x120B777C)
-                setStroke(dp(2), ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_text_secondary))
+                setStroke(dp(2), ContextCompat.getColor(this@BarcodeInputService, R.color.focus_region_outline))
             }
             visibility = View.GONE
             isClickable = true
@@ -402,14 +422,10 @@ class BarcodeInputService : InputMethodService() {
         val focusResizeHandle = TextView(this).apply {
             text = "\u2198"
             gravity = Gravity.CENTER
-            textSize = 18f
-            setTextColor(ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_button_text))
+            textSize = 15f
+            setTextColor(ContextCompat.getColor(this@BarcodeInputService, R.color.focus_region_outline))
             contentDescription = getString(R.string.focus_resize_accessibility)
-            background = GradientDrawable().apply {
-                setColor(0xDD0B777C.toInt())
-                setStroke(dp(2), ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_text_secondary))
-                cornerRadius = dp(8).toFloat()
-            }
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
             isClickable = true
             isFocusable = true
         }
@@ -513,8 +529,7 @@ class BarcodeInputService : InputMethodService() {
         frame.addView(focusRegion, FrameLayout.LayoutParams(dp(160), dp(160), Gravity.CENTER))
         preview.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             val regionChanged = layoutFocusRegion(focusRegion, preview)
-            previewOutputTransform = null
-            previewOutputTransformSize = null
+            previewTransformSnapshot = null
             preview.post { refreshPreviewOutputTransform(preview, cameraRequestId) }
             if (focusEnabled && !regionChanged) {
                 invalidateScanCallbacks()
@@ -657,8 +672,8 @@ class BarcodeInputService : InputMethodService() {
         root.addView(resizeHandle, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)))
         root.addView(frame, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, frameHeight))
         controls.addView(statusRow, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-        controls.addView(modeControlsScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         controls.addView(candidatesScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        controls.addView(modeControlsScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         controls.addView(enableCamera, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         controls.addView(toolbar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         controls.addView(actions, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
@@ -714,7 +729,7 @@ class BarcodeInputService : InputMethodService() {
         val initialAvailableWidth = initialContentWidth.coerceAtLeast(1)
         rebuildToolbarRows(toolbar, editingButtons, initialAvailableWidth, density, resources.configuration.fontScale, actions)
         val initialContentHeights = measureInputViewContentHeights(
-            root, resizeHandle, statusRow, modeControlsScroll, candidatesScroll, enableCamera, toolbar, actions, developerSignature,
+            root, resizeHandle, statusRow, candidatesScroll, modeControlsScroll, enableCamera, toolbar, actions, developerSignature,
             initialAvailableWidth,
         )
         measuredInputViewContentHeights = initialContentHeights
@@ -740,7 +755,7 @@ class BarcodeInputService : InputMethodService() {
             ).coerceAtLeast(1)
             rebuildToolbarRows(toolbar, editingButtons, measuredWidth, density, resources.configuration.fontScale, actions)
             measuredInputViewContentHeights = measureInputViewContentHeights(
-                root, resizeHandle, statusRow, modeControlsScroll, candidatesScroll, enableCamera, toolbar, actions, developerSignature, measuredWidth,
+                root, resizeHandle, statusRow, candidatesScroll, modeControlsScroll, enableCamera, toolbar, actions, developerSignature, measuredWidth,
             )
             updateInputViewSizing()
         }
@@ -801,6 +816,33 @@ class BarcodeInputService : InputMethodService() {
         return container
     }
 
+    /** Blocks keyboard use until the launcher agreement has been accepted. */
+    private fun createLicenseRequiredView(): View {
+        licenseGateVisible = true
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(20), dp(24), dp(20))
+            setBackgroundColor(ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_background))
+            addView(TextView(this@BarcodeInputService).apply {
+                text = getString(R.string.license_required_keyboard)
+                textSize = 16f
+                gravity = Gravity.CENTER
+                setTextColor(ContextCompat.getColor(this@BarcodeInputService, R.color.keyboard_text_primary))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(Button(this@BarcodeInputService).apply {
+                text = getString(R.string.license_required_button)
+                isAllCaps = false
+                setOnClickListener {
+                    startActivity(Intent(this@BarcodeInputService, SetupActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(12)
+            })
+        }
+    }
+
     /** Keep the scanner docked and prevent landscape extract/fullscreen mode. */
     override fun onEvaluateFullscreenMode(): Boolean {
         super.onEvaluateFullscreenMode()
@@ -820,8 +862,8 @@ class BarcodeInputService : InputMethodService() {
         root: LinearLayout,
         resizeHandle: View,
         statusRow: View,
-        modeControls: View,
         candidates: View,
+        modeControls: View,
         permissionButton: View,
         toolbar: View,
         actions: View,
@@ -844,7 +886,7 @@ class BarcodeInputService : InputMethodService() {
         }
 
         val permanent = root.paddingTop + root.paddingBottom + measuredHeight(resizeHandle) + measuredHeight(signature)
-        val controls = measuredHeight(statusRow) + measuredHeight(modeControls) + measuredHeight(candidates) + measuredHeight(permissionButton) +
+        val controls = measuredHeight(statusRow) + measuredHeight(candidates) + measuredHeight(modeControls) + measuredHeight(permissionButton) +
             measuredHeight(toolbar) + measuredHeight(actions)
         return ResponsiveKeyboardLayoutPolicy.InputViewContentHeights(permanent, controls)
     }
@@ -948,10 +990,29 @@ class BarcodeInputService : InputMethodService() {
     /** Starts camera work only when the keyboard is visible. */
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        if (!PersonalUseLicense.hasAccepted(this)) {
+            requestLicenseAgreement()
+            return
+        }
+        if (PersonalUseLicense.hasAccepted(this) && licenseGateVisible) {
+            setInputView(onCreateInputView())
+        }
         keyboardContainer?.post { updateInputViewSizing() }
         refreshPermissionUi()
         refreshUndoButton()
         if (!helpVisible) startCamera(currentSessionId)
+    }
+
+    /** Opens the personal-use agreement the first time BarKey is selected as the keyboard. */
+    private fun requestLicenseAgreement() {
+        if (licenseAgreementLaunchRequested) return
+        licenseAgreementLaunchRequested = true
+        try {
+            startActivity(Intent(this, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (error: RuntimeException) {
+            licenseAgreementLaunchRequested = false
+            Log.w(TAG, "Unable to open the personal-use agreement (${error.javaClass.simpleName})")
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -1007,6 +1068,7 @@ class BarcodeInputService : InputMethodService() {
 
     /** Stops camera and held-key work when the input view closes. */
     override fun onFinishInputView(finishingInput: Boolean) {
+        if (!PersonalUseLicense.hasAccepted(this)) licenseAgreementLaunchRequested = false
         stopBackspaceRepeat()
         resetHelpPanelForHiddenWindow()
         inputEditor.clearUndo()
@@ -1340,10 +1402,14 @@ class BarcodeInputService : InputMethodService() {
 
     /** Pauses automatic insertion and clears suggestions when Preview changes. */
     private fun togglePreview() {
+        if (!ScanOptionPolicy.canEnablePreview(singleScanEnabled)) {
+            setStatus(R.string.preview_blocked_by_single_scan)
+            return
+        }
         previewEnabled = !previewEnabled
         clearPreviewCandidates()
         invalidateScanCallbacks()
-        setStatus(if (previewEnabled) R.string.preview_empty else R.string.scanner_ready)
+        showScanOptionStatus()
         renderExtendedControls()
     }
 
@@ -1353,43 +1419,74 @@ class BarcodeInputService : InputMethodService() {
         clearPreviewCandidates()
         invalidateScanCallbacks()
         if (focusEnabled) {
-            previewOutputTransform = null
-            previewOutputTransformSize = null
+            previewTransformSnapshot = null
             previewView?.let { preview -> preview.post { refreshPreviewOutputTransform(preview, cameraRequestId) } }
         }
         focusOverlay?.visibility = if (focusEnabled) View.VISIBLE else View.GONE
         if (focusEnabled) focusOverlay?.post { focusOverlay?.let { updateFocusRegion(it, previewView) } }
+        showScanOptionStatus()
         renderExtendedControls()
     }
 
     /** Allows one successful insertion for each recognised field. */
     private fun toggleSingleScan() {
+        if (!ScanOptionPolicy.canEnableSingleScan(previewEnabled)) {
+            setStatus(R.string.single_scan_blocked_by_preview)
+            return
+        }
         singleScanEnabled = !singleScanEnabled
         if (!singleScanEnabled) singleScanGate.reset() else currentFieldKey()?.let(singleScanGate::moveTo)
         invalidateScanCallbacks()
         clearPreviewCandidates()
+        showScanOptionStatus()
         renderExtendedControls()
     }
 
-    /** Refreshes selected states and accessibility labels for scan controls. */
+    /** Shows the current option's next step in the status area. */
+    private fun showScanOptionStatus() {
+        val messageId = when {
+            singleScanEnabled && singleScanGate.isConsumed() && focusEnabled -> R.string.focus_single_scan_used
+            singleScanEnabled && singleScanGate.isConsumed() -> R.string.single_scan_used
+            previewEnabled && focusEnabled -> R.string.preview_focus_modes_active
+            previewEnabled -> R.string.preview_empty
+            focusEnabled && singleScanEnabled -> R.string.focus_single_scan_modes_active
+            focusEnabled -> R.string.focus_mode_active
+            singleScanEnabled -> R.string.single_scan_mode_active
+            else -> R.string.scanner_ready
+        }
+        setStatus(messageId)
+    }
+
+    /** Mutes conflicting modes but keeps them tappable so the status can explain why. */
     private fun renderExtendedControls() {
-        fun render(button: Button?, enabled: Boolean, selected: Boolean) {
+        fun render(button: Button?, selected: Boolean, blocked: Boolean = false, blockedDescription: Int? = null) {
             button ?: return
             button.isActivated = selected
             button.setBackgroundResource(if (selected) R.drawable.scan_mode_button_background else R.drawable.keyboard_button_background)
             button.backgroundTintList = null
             button.setTextColor(ContextCompat.getColorStateList(this, R.color.keyboard_button_text))
-            button.contentDescription = getString(when (button) {
+            button.alpha = if (blocked) 0.5f else 1f
+            button.contentDescription = getString(blockedDescription ?: when (button) {
                 previewToggleButton -> R.string.preview_accessibility
                 focusToggleButton -> R.string.focus_accessibility
                 singleScanToggleButton -> if (singleScanGate.isConsumed()) R.string.single_scan_used else R.string.single_scan_accessibility
                 else -> R.string.single_scan_accessibility
             })
-            button.isEnabled = enabled
+            button.isEnabled = true
         }
-        render(previewToggleButton, true, previewEnabled)
-        render(focusToggleButton, true, focusEnabled)
-        render(singleScanToggleButton, true, singleScanEnabled)
+        render(
+            previewToggleButton,
+            previewEnabled,
+            blocked = !ScanOptionPolicy.canEnablePreview(singleScanEnabled),
+            blockedDescription = R.string.preview_blocked_accessibility,
+        )
+        render(focusToggleButton, focusEnabled)
+        render(
+            singleScanToggleButton,
+            singleScanEnabled,
+            blocked = !ScanOptionPolicy.canEnableSingleScan(previewEnabled),
+            blockedDescription = R.string.single_scan_blocked_accessibility,
+        )
     }
 
     /** Saves the region in preview-relative coordinates and clears stale results. */
@@ -1421,10 +1518,9 @@ class BarcodeInputService : InputMethodService() {
         val region = focusOverlay as? FrameLayout ?: return
         val preview = previewView ?: return
         if (preview.width <= 0 || preview.height <= 0) return
-        val width = minOf(dp(160), preview.width)
-        val height = minOf(dp(160), preview.height)
+        val (width, height) = defaultFocusRegionSize(preview)
         val reset = FocusRegionGeometry.centeredRect(
-            preview.width.toFloat(), preview.height.toFloat(), width.toFloat(), height.toFloat(),
+            preview.width.toFloat(), preview.height.toFloat(), width, height,
         )
         val lp = region.layoutParams as? FrameLayout.LayoutParams ?: return
         lp.gravity = Gravity.TOP or Gravity.START
@@ -1436,6 +1532,13 @@ class BarcodeInputService : InputMethodService() {
         updateFocusRegion(region, preview, lp.leftMargin, lp.topMargin, lp.width, lp.height)
     }
 
+    /** Starts with a forgiving scan area that users can shrink around nearby codes. */
+    private fun defaultFocusRegionSize(preview: PreviewView): Pair<Float, Float> =
+        (preview.width * DEFAULT_FOCUS_REGION_FRACTION).coerceAtLeast(dp(64).toFloat())
+            .coerceAtMost(preview.width.toFloat()) to
+            (preview.height * DEFAULT_FOCUS_REGION_FRACTION).coerceAtLeast(dp(64).toFloat())
+                .coerceAtMost(preview.height.toFloat())
+
     /** Restores the saved region size and position after preview layout changes. */
     private fun layoutFocusRegion(view: View, preview: PreviewView): Boolean {
         if (preview.width <= 0 || preview.height <= 0) return false
@@ -1443,8 +1546,7 @@ class BarcodeInputService : InputMethodService() {
         lp.gravity = Gravity.TOP or Gravity.START
         val stored = focusRegionState.snapshot().region
         val hasStoredPosition = stored.right > stored.left && stored.bottom > stored.top
-        val defaultWidth = minOf(dp(160), preview.width).toFloat()
-        val defaultHeight = minOf(dp(160), preview.height).toFloat()
+        val (defaultWidth, defaultHeight) = defaultFocusRegionSize(preview)
         val clamped = if (hasStoredPosition) {
             FocusRegionGeometry.normalizedToPixels(
                 stored, preview.width.toFloat(), preview.height.toFloat(),
@@ -1463,40 +1565,60 @@ class BarcodeInputService : InputMethodService() {
 
     /** Maps the visible Focus box into this frame's crop, rejecting stale transforms. */
     private fun mappedScanCrop(image: androidx.camera.core.ImageProxy, expectedSettingsGeneration: Long): Rect? {
-        if (!focusEnabled || !settingsCallbackGeneration.accepts(expectedSettingsGeneration)) return null
-        val regionSnapshot = focusRegionState.snapshotFor(expectedSettingsGeneration) ?: return null
-        val preview = previewView ?: return null
-        val previewTransform = previewOutputTransform ?: return null
-        if (previewOutputTransformSize != (preview.width to preview.height)) return null
+        if (!focusEnabled || !settingsCallbackGeneration.accepts(expectedSettingsGeneration)) {
+            return reportFocusMappingState("settings changed before mapping")
+        }
+        val regionSnapshot = focusRegionState.snapshotFor(expectedSettingsGeneration)
+            ?: return reportFocusMappingState("focus region changed before mapping")
+        val preview = previewView ?: return reportFocusMappingState("preview view unavailable")
+        val transformSnapshot = previewTransformSnapshot ?: return reportFocusMappingState("camera transform unavailable")
+        if (transformSnapshot.width != preview.width || transformSnapshot.height != preview.height) {
+            return reportFocusMappingState("preview size changed")
+        }
         val region = regionSnapshot.region
-        if (preview.width <= 0 || preview.height <= 0 || region.right <= region.left || region.bottom <= region.top) return null
+        if (preview.width <= 0 || preview.height <= 0 || region.right <= region.left || region.bottom <= region.top) {
+            return reportFocusMappingState("focus region has no area")
+        }
         val mapped = android.graphics.RectF(
             region.left * preview.width, region.top * preview.height,
             region.right * preview.width, region.bottom * preview.height,
         )
         val crop = image.cropRect
         val validCrop = android.graphics.Rect(crop).apply { intersect(0, 0, image.width, image.height) }
-        if (validCrop.isEmpty) return null
+        if (validCrop.isEmpty) return reportFocusMappingState("camera frame crop is empty")
         val mappedCrop = FocusRegionGeometry.mapPreviewRectToImageCrop(
             previewRect = FocusRegionGeometry.RectF(mapped.left, mapped.top, mapped.right, mapped.bottom),
             crop = FocusRegionGeometry.ImageRect(validCrop.left, validCrop.top, validCrop.right, validCrop.bottom),
-        ) { cropLocalRect ->
-            val cameraXRect = android.graphics.RectF(
-                cropLocalRect.left, cropLocalRect.top, cropLocalRect.right, cropLocalRect.bottom,
+        ) { previewRect ->
+            val sensorRect = android.graphics.RectF(
+                previewRect.left, previewRect.top, previewRect.right, previewRect.bottom,
             )
-            // setUsingCropRect(true) makes CameraX's destination crop-local: its origin is
-            // (0,0), even when ImageProxy.cropRect has non-zero buffer offsets. Rotation,
-            // ViewPort and PreviewView scaling are encoded by the two current OutputTransforms.
-            CoordinateTransform(previewTransform, imageProxyTransformFactory.getOutputTransform(image))
-                .mapRect(cameraXRect)
+            // Both CameraX matrices start in sensor coordinates, so map through sensor space.
+            transformSnapshot.viewToSensor.mapRect(sensorRect)
+            image.imageInfo.sensorToBufferTransformMatrix.mapRect(sensorRect)
             FocusRegionGeometry.RectF(
-                cameraXRect.left, cameraXRect.top, cameraXRect.right, cameraXRect.bottom,
+                sensorRect.left, sensorRect.top, sensorRect.right, sensorRect.bottom,
             )
-        } ?: return null
+        } ?: return reportFocusMappingState("focus region maps outside the camera frame")
         if (!focusEnabled || !settingsCallbackGeneration.accepts(expectedSettingsGeneration) ||
             focusRegionState.snapshotFor(expectedSettingsGeneration)?.region != regionSnapshot.region
-        ) return null
+        ) return reportFocusMappingState("focus region changed during mapping")
+        reportFocusMappingState(
+            "crop ${mappedCrop.right - mappedCrop.left}x${mappedCrop.bottom - mappedCrop.top} " +
+                "in ${image.width}x${image.height} frame",
+            warning = false,
+        )
         return Rect(mappedCrop.left, mappedCrop.top, mappedCrop.right, mappedCrop.bottom)
+    }
+
+    /** Logs mapping status without exposing camera pixels or decoded values. */
+    private fun reportFocusMappingState(message: String, warning: Boolean = true): Rect? {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastFocusMappingLogAtMs >= FOCUS_MAPPING_LOG_INTERVAL_MS) {
+            lastFocusMappingLogAtMs = now
+            if (warning) Log.w(TAG, "Focus mapping: $message") else Log.d(TAG, "Focus mapping: $message")
+        }
+        return null
     }
 
     /** Identifies the editor without reading or storing its text. */
@@ -1521,14 +1643,14 @@ class BarcodeInputService : InputMethodService() {
         val wasConsumed = singleScanGate.isConsumed()
         singleScanGate.moveTo(next)
         if (wasConsumed && !singleScanGate.isConsumed()) {
-            setStatus(R.string.scanner_ready)
+            showScanOptionStatus()
             renderExtendedControls()
         }
     }
 
     /** Binds preview and analysis together so Focus maps to the displayed camera area. */
     private fun startCamera(sessionId: Long) {
-        if (helpVisible || !sessionGate.isCurrent(sessionId)) return
+        if (!PersonalUseLicense.hasAccepted(this) || helpVisible || !sessionGate.isCurrent(sessionId)) return
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             setPermissionRequiredStatus()
             return
@@ -1644,7 +1766,7 @@ class BarcodeInputService : InputMethodService() {
                     cameraStateObserver = stateObserver
                     observedCameraState = camera.cameraInfo.cameraState
                     observedCameraState?.observe(cameraLifecycle, stateObserver)
-                    setStatus(R.string.scanner_ready)
+                    showScanOptionStatus()
                     permissionButton?.visibility = View.GONE
                     preview.post {
                         if (!sessionGate.isCurrent(sessionId) || cameraRequestId != requestId) return@post
@@ -1697,20 +1819,19 @@ class BarcodeInputService : InputMethodService() {
         cameraProvider = null
         previewUseCase = null
         analysisUseCase = null
-        previewOutputTransform = null
-        previewOutputTransformSize = null
+        previewTransformSnapshot = null
         clearPendingResults()
         clearPreviewCandidates()
         cameraLifecycle.pause()
     }
 
-    /** Waits for CameraX layout data before mapping Focus to a frame. */
+    /** Captures CameraX's sensor-to-view mapping after the preview is laid out. */
     private fun refreshPreviewOutputTransform(preview: PreviewView, requestId: Long) {
         if (requestId != cameraRequestId || helpVisible) return
-        val transform = preview.outputTransform
-        if (transform != null) {
-            previewOutputTransform = transform
-            previewOutputTransformSize = preview.width to preview.height
+        val sensorToView = preview.sensorToViewTransform
+        val viewToSensor = Matrix()
+        if (sensorToView != null && sensorToView.invert(viewToSensor) && preview.width > 0 && preview.height > 0) {
+            previewTransformSnapshot = PreviewTransformSnapshot(Matrix(viewToSensor), preview.width, preview.height)
             transformRefreshRunnable = null
             return
         }
@@ -2206,5 +2327,7 @@ class BarcodeInputService : InputMethodService() {
 
     private companion object {
         const val TAG = "BarcodeInputService"
+        const val DEFAULT_FOCUS_REGION_FRACTION = 0.8f
+        const val FOCUS_MAPPING_LOG_INTERVAL_MS = 2_000L
     }
 }

@@ -1,20 +1,25 @@
-// Copyright 2026 Amanda Hernow. Licensed under the Apache License, Version 2.0.
+// Copyright 2026 Amanda Hernow. Licensed under PolyForm Noncommercial 1.0.0.
 package net.hernow.barkey
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
+import android.text.util.Linkify
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -24,9 +29,13 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 
+/** Keeps the unchecked Continue button visible without making it look available. */
+private const val DISABLED_AGREE_ALPHA = 0.45f
+
 /** Launcher setup guide. Android remains in control of enabling and selecting input methods. */
 class SetupActivity : Activity() {
     private var controlsExpanded = false
+    private var setupGuideVisible = false
     private var enabledStatus: TextView? = null
     private var selectedStatus: TextView? = null
     private var cameraStatus: TextView? = null
@@ -36,8 +45,7 @@ class SetupActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         controlsExpanded = savedInstanceState?.getBoolean(STATE_CONTROLS_EXPANDED) ?: false
-        setContentView(createContent())
-        refreshSetupStatus()
+        if (PersonalUseLicense.hasAccepted(this)) showSetupGuide() else showLicenseAgreement()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -47,6 +55,125 @@ class SetupActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (setupGuideVisible) refreshSetupStatus()
+    }
+
+    /** Shows the personal-use terms and full licence before setup can continue. */
+    private fun showLicenseAgreement() {
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(color(R.color.keyboard_background))
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            isFocusable = false
+            isFocusableInTouchMode = false
+            clipToPadding = false
+            setPadding(dp(20), dp(20), dp(20), dp(12))
+        }
+        val sections = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        sections.addView(text(getString(R.string.license_agreement_eyebrow), 13f, bold = true).apply {
+            setTextColor(color(R.color.setup_controls_accent))
+        })
+        sections.addView(text(getString(R.string.license_agreement_title), 28f, bold = true),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(6)
+                bottomMargin = dp(6)
+            })
+        sections.addView(text(getString(R.string.license_agreement_intro), 15f).apply {
+            setTextColor(color(R.color.keyboard_text_secondary))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(18)
+        })
+
+        sections.addView(agreementCard(
+            getString(R.string.license_personal_use_title),
+            text(getString(R.string.license_agreement_summary), 15f),
+        ), agreementSectionLayout())
+        val contact = text(getString(R.string.license_company_contact), 15f).apply {
+            autoLinkMask = Linkify.EMAIL_ADDRESSES
+            movementMethod = LinkMovementMethod.getInstance()
+        }
+        sections.addView(agreementCard(getString(R.string.license_company_title), contact), agreementSectionLayout())
+
+        val licenseText = text(PersonalUseLicense.fullTerms(this), 13f).apply {
+            setTextColor(color(R.color.keyboard_text_secondary))
+        }
+        sections.addView(agreementCard(getString(R.string.license_source_terms_title), licenseText), agreementSectionLayout())
+        scroll.addView(sections)
+        page.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(16))
+            setBackgroundColor(color(R.color.keyboard_surface))
+        }
+        val consent = CheckBox(this).apply {
+            text = getString(R.string.license_agreement_consent)
+            setTextColor(color(R.color.keyboard_text_primary))
+            isChecked = false
+        }
+        footer.addView(consent)
+        val agree = Button(this).apply {
+            text = getString(R.string.license_agreement_agree)
+            isEnabled = false
+            alpha = DISABLED_AGREE_ALPHA
+            backgroundTintList = ColorStateList.valueOf(color(R.color.setup_controls_accent))
+            setTextColor(color(R.color.keyboard_background))
+            setOnClickListener {
+                if (!PersonalUseLicense.accept(this@SetupActivity)) {
+                    Toast.makeText(this@SetupActivity, R.string.license_agreement_save_failed, Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                showSetupGuide()
+                PersonalUseLicense.notifyAccepted(this@SetupActivity)
+            }
+        }
+        consent.setOnCheckedChangeListener { _, checked ->
+            agree.isEnabled = checked
+            agree.alpha = if (checked) 1f else DISABLED_AGREE_ALPHA
+        }
+        footer.addView(agree, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)).apply {
+            topMargin = dp(8)
+        })
+        footer.addView(Button(this).apply {
+            text = getString(R.string.license_agreement_decline)
+            setOnClickListener {
+                Toast.makeText(this@SetupActivity, R.string.license_declined_message, Toast.LENGTH_LONG).show()
+                finish()
+            }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
+        page.addView(footer)
+        setContentView(page)
+        scroll.post { scroll.scrollTo(0, 0) }
+    }
+
+    /** Builds a rounded panel for one part of the agreement. */
+    private fun agreementCard(title: String, body: View): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(14), dp(16), dp(16))
+        background = GradientDrawable().apply {
+            setColor(color(R.color.keyboard_surface))
+            cornerRadius = dp(16).toFloat()
+            setStroke(dp(1), color(R.color.keyboard_outline))
+        }
+        addView(text(title, 17f, bold = true), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { bottomMargin = dp(8) })
+        addView(body)
+    }
+
+    /** Adds space between agreement panels. */
+    private fun agreementSectionLayout() = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+    ).apply { bottomMargin = dp(12) }
+
+    /** Opens the ordinary setup guide once the personal-use terms are accepted. */
+    private fun showSetupGuide() {
+        setupGuideVisible = true
+        setContentView(createContent())
         refreshSetupStatus()
     }
 

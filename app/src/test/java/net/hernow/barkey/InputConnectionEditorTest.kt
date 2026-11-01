@@ -23,6 +23,22 @@ class InputConnectionEditorTest {
         assertEquals("", connection.value())
     }
 
+    @Test fun repeatedScansCanBeUndoneOneAtATime() {
+        val connection = FakeEditorConnection()
+        repeat(10) { assertTrue(editor.commitScan(connection, 1L, "ABC123", true)) }
+        assertEquals("ABC123".repeat(10), connection.value())
+
+        repeat(9) {
+            assertTrue(editor.canUndo(connection, 1L))
+            assertTrue(editor.undo(connection, 1L))
+        }
+        assertEquals("ABC123", connection.value())
+        assertTrue(editor.canUndo(connection, 1L))
+        assertTrue(editor.undo(connection, 1L))
+        assertEquals("", connection.value())
+        assertFalse(editor.canUndo(connection, 1L))
+    }
+
     @Test fun scanIsUndoableWhenFinishComposingReturnsFalseButInsertionVerifies() {
         val connection = FakeEditorConnection().apply { finishComposingResult = false }
         assertTrue(editor.commitScan(connection, 1L, "123456789", true))
