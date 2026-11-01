@@ -4,7 +4,7 @@
 
 **BarKey is a barcode and QR-code scanning keyboard for Android.** It uses the rear camera to scan a code and enters the result directly into the text field you are using. Scanning and decoding happen on the device, without an internet connection.
 
-BarKey is free for private, personal use. Company and workplace use require Amanda Hernow’s prior written approval; see [Intended use and licence](#intended-use-and-licence).
+BarKey is free for private, personal use. Company and workplace use require my prior written approval; see [Intended use and licence](#intended-use-and-licence).
 
 ## Features
 
@@ -55,7 +55,7 @@ The app receiving text controls its editor behaviour. Navigation and editing act
 
 BarKey is designed for Android phones and tablets. It can also be installed on shared or organisation-managed Android devices, including devices enrolled in Microsoft Intune. Android’s camera permission and the requirement to enable and select BarKey as an input method still apply. BarKey includes an Android managed configuration setting, `scan_suffix`, which can add no action, Enter or Tab after a scan; its default is no action.
 
-Being technically installable or configurable on an Intune-enrolled device does **not** grant permission for company or workplace use. The personal-use agreement and source licence still apply. Organisations must contact Amanda for written approval before installing or testing BarKey for work. Managed deployments and organisation-specific policies have not been validated in every environment.
+Being technically installable or configurable on an Intune-enrolled device does **not** grant permission for company or workplace use. The personal-use agreement and source licence still apply. If your organisation wants to install or test BarKey for work, please contact me for written approval first. Managed deployments and organisation-specific policies have not been validated in every environment.
 
 ## Privacy
 
@@ -65,9 +65,9 @@ The app receiving the text controls what it does with that text after insertion.
 
 ## Intended use and licence
 
-BarKey is free to use for private, personal purposes. Company or workplace use, commercial activity, paid redistribution, or inclusion in a paid product or service requires Amanda Hernow’s prior written approval. Companies must contact Amanda before installing or testing BarKey for work or evaluation. There is no company trial or free scan allowance.
+BarKey is free to use for private, personal purposes. Company or workplace use, commercial activity, paid redistribution, or inclusion in a paid product or service requires my prior written approval. Please contact me before installing or testing BarKey for work or evaluation. There is no company trial or free scan allowance.
 
-Contact [barkey.support@hernow.net](mailto:barkey.support@hernow.net) to request commercial permission or discuss a commercial version.
+Contact me at [barkey.support@hernow.net](mailto:barkey.support@hernow.net) to request commercial permission or discuss a commercial version.
 
 The source code is available under the [PolyForm Noncommercial License 1.0.0](LICENSE). This is a source-available licence that restricts commercial use; it is not an OSI-approved open-source licence. The separate in-app agreement explains the personal-use terms for the BarKey app. Earlier copies released under Apache License 2.0 remain under their original terms; this licence change does not revoke permissions already granted.
 
