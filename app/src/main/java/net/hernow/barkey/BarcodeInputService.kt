@@ -2160,11 +2160,15 @@ class BarcodeInputService : InputMethodService() {
             ScanPostAction.None -> Unit
         }
         if (postAction !is ScanPostAction.Automatic) {
-            setStatus(postActionFailureStatus ?: if (singleScanGate.isConsumed()) {
-                R.string.scan_field_used
-            } else {
-                R.string.scan_inserted
-            })
+            when {
+                postActionFailureStatus != null -> setStatus(postActionFailureStatus)
+                isPreviewSelection -> showScanOptionStatus()
+                else -> setStatus(if (singleScanGate.isConsumed()) {
+                    R.string.scan_field_used
+                } else {
+                    R.string.scan_inserted
+                })
+            }
         }
         renderExtendedControls()
     }

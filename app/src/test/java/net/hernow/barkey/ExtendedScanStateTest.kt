@@ -50,6 +50,39 @@ class ExtendedScanStateTest {
         assertFalse(ScanOptionStatusPolicy.mayOfferScanAgain(previewAndFocus, fieldConsumed = true))
     }
 
+    @Test fun successfulPreviewSelectionsKeepPreviewStatusAndFieldProtection() {
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val field = EditorFieldKey(Any(), "example.app", 781)
+        val candidates = PreviewCandidateState()
+        coordinator.observeEditorContext(field)
+        candidates.update(listOf("first", "second"), 10)
+        val selectionToken = candidates.selectionToken()
+
+        for (value in listOf("first", "second")) {
+            assertTrue(coordinator.maySelectPreview(true, candidates, value, 10, field, field, selectionToken))
+            coordinator.recordSuccessfulInsertion(field)
+            val previewStatus = ScanOptionStatusPolicy.resolve(
+                previewEnabled = true,
+                focusEnabled = false,
+                awaitingFieldChange = false,
+                fieldConsumed = gate.isConsumed(),
+            )
+            assertEquals(ScanOptionStatus.PREVIEW, previewStatus)
+            assertFalse(ScanOptionStatusPolicy.mayOfferScanAgain(previewStatus, gate.isConsumed()))
+        }
+
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        val statusWithPreviewOff = ScanOptionStatusPolicy.resolve(
+            previewEnabled = false,
+            focusEnabled = false,
+            awaitingFieldChange = false,
+            fieldConsumed = gate.isConsumed(),
+        )
+        assertEquals(ScanOptionStatus.FIELD_ALREADY_SCANNED, statusWithPreviewOff)
+        assertTrue(ScanOptionStatusPolicy.mayOfferScanAgain(statusWithPreviewOff, gate.isConsumed()))
+    }
+
     @Test fun fieldStatusReflectsBothAvailabilityTransitionsAndContinuousWaiting() {
         val available = ScanOptionStatusPolicy.resolve(
             previewEnabled = false, focusEnabled = false, awaitingFieldChange = false, fieldConsumed = false,
