@@ -108,6 +108,7 @@
         <li>Decoded text is temporarily held in memory while it is decoded and inserted into the focused field.</li>
         <li>When Preview is enabled, BarKey temporarily keeps up to eight distinct currently detected values in memory so you can choose one to insert. A suggestion expires shortly after its code is no longer detected and cannot be selected after its editor or scanner context changes; this is not a scan history.</li>
         <li>Duplicate suppression retains the most recently accepted scan value in memory until the active input session ends and compares repeated values during a one-second window.</li>
+        <li>To enforce one automatic insertion per field, BarKey keeps the package name and reliable field IDs of successfully scanned fields in memory for the keyboard service lifetime. This field-identity history contains no barcode or editor text and is cleared when the keyboard service is destroyed; it is not saved to storage.</li>
         <li>Guarded Undo may retain up to 20 recent BarKey insertions and bounded surrounding cursor context in memory while they remain safely undoable.</li>
         <li>The duplicate-suppression value is cleared when the input session ends. Undo history is cleared when the input session ends, the keyboard is hidden or switched away from, relevant editor context changes, another non-scan editing action is used, or BarKey restarts. Undo history is never saved to storage. BarKey has no permanent barcode history and does not write scan values to logs or persistent app storage.</li>
       </ul>
