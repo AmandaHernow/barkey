@@ -464,6 +464,54 @@ internal class ScanDeliveryCoordinator(
     }
 }
 
+/** Status states owned by the scan controls rather than camera or permission error reporting. */
+internal enum class ScanOptionStatus {
+    PREVIEW,
+    PREVIEW_AND_FOCUS,
+    WAITING_FOR_FIELD,
+    FIELD_ALREADY_SCANNED,
+    FOCUS_FIELD_ALREADY_SCANNED,
+    FOCUS_ACTIVE,
+    READY,
+}
+
+/** Keeps Preview priority and per-field status transitions consistent and independently testable. */
+internal object ScanOptionStatusPolicy {
+    /** Preview copy takes precedence because deliberate candidate selection remains available. */
+    fun resolve(
+        previewEnabled: Boolean,
+        focusEnabled: Boolean,
+        awaitingFieldChange: Boolean,
+        fieldConsumed: Boolean,
+    ): ScanOptionStatus = when {
+        previewEnabled && focusEnabled -> ScanOptionStatus.PREVIEW_AND_FOCUS
+        previewEnabled -> ScanOptionStatus.PREVIEW
+        awaitingFieldChange -> ScanOptionStatus.WAITING_FOR_FIELD
+        fieldConsumed && focusEnabled -> ScanOptionStatus.FOCUS_FIELD_ALREADY_SCANNED
+        fieldConsumed -> ScanOptionStatus.FIELD_ALREADY_SCANNED
+        focusEnabled -> ScanOptionStatus.FOCUS_ACTIVE
+        else -> ScanOptionStatus.READY
+    }
+
+    /** Scan Again is available only when the displayed state represents a blocked field. */
+    fun mayOfferScanAgain(status: ScanOptionStatus, fieldConsumed: Boolean): Boolean =
+        fieldConsumed && (status == ScanOptionStatus.WAITING_FOR_FIELD ||
+            status == ScanOptionStatus.FIELD_ALREADY_SCANNED ||
+            status == ScanOptionStatus.FOCUS_FIELD_ALREADY_SCANNED)
+
+    /** State changes refresh owned statuses while leaving unrelated camera/permission errors intact. */
+    fun shouldRefreshDisplayedStatus(
+        statusBelongsToScanOptions: Boolean,
+        verifiedFieldChanged: Boolean,
+        wasConsumed: Boolean,
+        isConsumed: Boolean,
+        wasAwaitingFieldChange: Boolean,
+        isAwaitingFieldChange: Boolean,
+    ): Boolean = statusBelongsToScanOptions &&
+        (verifiedFieldChanged || wasConsumed != isConsumed ||
+            wasAwaitingFieldChange != isAwaitingFieldChange)
+}
+
 /** Geometry helpers for the movable and resizable Focus region and its production camera crop mapping. */
 internal object FocusRegionGeometry {
     data class RectF(val left: Float, val top: Float, val right: Float, val bottom: Float)

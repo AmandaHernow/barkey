@@ -104,6 +104,8 @@ class BarcodeInputService : InputMethodService() {
     private var cameraStateObserver: Observer<CameraState>? = null
     private var previewView: PreviewView? = null
     private var statusView: TextView? = null
+    /** Last status resource lets editor transitions avoid replacing unrelated camera/permission errors. */
+    private var currentStatusMessageId = R.string.scanner_ready
     private var keyboardRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
     private var aboutHelpPanel: AboutHelpPanel? = null
@@ -1478,16 +1480,22 @@ class BarcodeInputService : InputMethodService() {
 
     /** Shows the current option's next step in the status area. */
     private fun showScanOptionStatus() {
-        val messageId = when {
-            automaticActions.isAwaitingFieldChange() -> R.string.auto_action_waiting_for_field
-            singleScanGate.isConsumed() && focusEnabled -> R.string.focus_scan_field_used
-            singleScanGate.isConsumed() -> R.string.scan_field_used
-            previewEnabled && focusEnabled -> R.string.preview_focus_modes_active
-            previewEnabled -> R.string.preview_empty
-            focusEnabled -> R.string.focus_mode_active
-            else -> R.string.scanner_ready
+        val status = ScanOptionStatusPolicy.resolve(
+            previewEnabled = previewEnabled,
+            focusEnabled = focusEnabled,
+            awaitingFieldChange = automaticActions.isAwaitingFieldChange(),
+            fieldConsumed = singleScanGate.isConsumed(),
+        )
+        val messageId = when (status) {
+            ScanOptionStatus.PREVIEW -> R.string.preview_empty
+            ScanOptionStatus.PREVIEW_AND_FOCUS -> R.string.preview_focus_modes_active
+            ScanOptionStatus.WAITING_FOR_FIELD -> R.string.auto_action_waiting_for_field
+            ScanOptionStatus.FIELD_ALREADY_SCANNED -> R.string.scan_field_used
+            ScanOptionStatus.FOCUS_FIELD_ALREADY_SCANNED -> R.string.focus_scan_field_used
+            ScanOptionStatus.FOCUS_ACTIVE -> R.string.focus_mode_active
+            ScanOptionStatus.READY -> R.string.scanner_ready
         }
-        setStatus(messageId)
+        setStatus(messageId, ScanOptionStatusPolicy.mayOfferScanAgain(status, singleScanGate.isConsumed()))
     }
 
     /** Applies the selected visual state and accessibility label to the four feature controls. */
@@ -1728,9 +1736,26 @@ class BarcodeInputService : InputMethodService() {
             clearPreviewCandidates()
         }
         val wasConsumed = singleScanGate.isConsumed()
-        scanDelivery.observeEditorContext(next)
-        if (wasConsumed && !singleScanGate.isConsumed()) {
+        val wasAwaitingFieldChange = automaticActions.isAwaitingFieldChange()
+        val previousTabState = automaticActions.state(AutomaticScanAction.TAB)
+        val previousEnterState = automaticActions.state(AutomaticScanAction.ENTER)
+        val verifiedFieldChanged = scanDelivery.observeEditorContext(next)
+        val isConsumed = singleScanGate.isConsumed()
+        val isAwaitingFieldChange = automaticActions.isAwaitingFieldChange()
+        val automaticActionSelectionChanged = previousTabState != automaticActions.state(AutomaticScanAction.TAB) ||
+            previousEnterState != automaticActions.state(AutomaticScanAction.ENTER)
+        val shouldRefreshStatus = ScanOptionStatusPolicy.shouldRefreshDisplayedStatus(
+            statusBelongsToScanOptions = currentStatusMessageId in SCAN_OPTION_STATUS_MESSAGE_IDS,
+            verifiedFieldChanged = verifiedFieldChanged,
+            wasConsumed = wasConsumed,
+            isConsumed = isConsumed,
+            wasAwaitingFieldChange = wasAwaitingFieldChange,
+            isAwaitingFieldChange = isAwaitingFieldChange,
+        )
+        if (shouldRefreshStatus) {
             showScanOptionStatus()
+        }
+        if (shouldRefreshStatus || automaticActionSelectionChanged) {
             renderExtendedControls()
         }
     }
@@ -2293,12 +2318,18 @@ class BarcodeInputService : InputMethodService() {
         }
     }
 
-    private fun setStatus(messageId: Int) {
+    /**
+     * Updates the visible status and its contextual Scan Again accessibility action.
+     * @param scanAgainAvailableOverride Overrides the status-ID allow-list for policy-selected states.
+     */
+    private fun setStatus(messageId: Int, scanAgainAvailableOverride: Boolean? = null) {
+        currentStatusMessageId = messageId
         statusView?.apply {
             setText(messageId)
             // Keep the status action contextual: permission, camera and editing errors must not
             // accidentally expose a control that bypasses the per-field scan guard.
-            val scanAgainAvailable = singleScanGate.isConsumed() && messageId in SCAN_AGAIN_STATUS_IDS
+            val scanAgainAvailable = singleScanGate.isConsumed() &&
+                (scanAgainAvailableOverride ?: (messageId in SCAN_AGAIN_STATUS_IDS))
             isClickable = scanAgainAvailable
             isFocusable = scanAgainAvailable
             contentDescription = getString(
@@ -2595,6 +2626,19 @@ class BarcodeInputService : InputMethodService() {
         const val DEFAULT_FOCUS_REGION_FRACTION = 0.8f
         const val FOCUS_MAPPING_LOG_INTERVAL_MS = 2_000L
         const val DISABLED_AUTOMATIC_BUTTON_ALPHA = 0.55f
+        val SCAN_OPTION_STATUS_MESSAGE_IDS = setOf(
+            R.string.scanner_ready,
+            R.string.focus_mode_active,
+            R.string.preview_empty,
+            R.string.preview_focus_modes_active,
+            R.string.scan_field_used,
+            R.string.focus_scan_field_used,
+            R.string.auto_action_waiting_for_field,
+            R.string.auto_action_ready_for_field,
+            R.string.auto_action_once_complete,
+            R.string.scan_again_rearmed,
+            R.string.scan_undo_complete,
+        )
         val SCAN_AGAIN_STATUS_IDS = setOf(
             R.string.scan_field_used,
             R.string.focus_scan_field_used,

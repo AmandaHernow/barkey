@@ -30,6 +30,155 @@ class ExtendedScanStateTest {
         assertEquals(listOf("new"), state.update(listOf("new"), 101))
     }
 
+    @Test fun previewStatusTakesPriorityOverConsumedFieldAndHidesScanAgain() {
+        val preview = ScanOptionStatusPolicy.resolve(
+            previewEnabled = true,
+            focusEnabled = false,
+            awaitingFieldChange = false,
+            fieldConsumed = true,
+        )
+        val previewAndFocus = ScanOptionStatusPolicy.resolve(
+            previewEnabled = true,
+            focusEnabled = true,
+            awaitingFieldChange = false,
+            fieldConsumed = true,
+        )
+
+        assertEquals(ScanOptionStatus.PREVIEW, preview)
+        assertEquals(ScanOptionStatus.PREVIEW_AND_FOCUS, previewAndFocus)
+        assertFalse(ScanOptionStatusPolicy.mayOfferScanAgain(preview, fieldConsumed = true))
+        assertFalse(ScanOptionStatusPolicy.mayOfferScanAgain(previewAndFocus, fieldConsumed = true))
+    }
+
+    @Test fun fieldStatusReflectsBothAvailabilityTransitionsAndContinuousWaiting() {
+        val available = ScanOptionStatusPolicy.resolve(
+            previewEnabled = false, focusEnabled = false, awaitingFieldChange = false, fieldConsumed = false,
+        )
+        val previouslyScanned = ScanOptionStatusPolicy.resolve(
+            previewEnabled = false, focusEnabled = false, awaitingFieldChange = false, fieldConsumed = true,
+        )
+        val focusScanned = ScanOptionStatusPolicy.resolve(
+            previewEnabled = false, focusEnabled = true, awaitingFieldChange = false, fieldConsumed = true,
+        )
+        val waiting = ScanOptionStatusPolicy.resolve(
+            previewEnabled = false, focusEnabled = false, awaitingFieldChange = true, fieldConsumed = true,
+        )
+        val previewWhileWaiting = ScanOptionStatusPolicy.resolve(
+            previewEnabled = true, focusEnabled = false, awaitingFieldChange = true, fieldConsumed = true,
+        )
+
+        assertEquals(ScanOptionStatus.READY, available)
+        assertEquals(ScanOptionStatus.FIELD_ALREADY_SCANNED, previouslyScanned)
+        assertEquals(ScanOptionStatus.FOCUS_FIELD_ALREADY_SCANNED, focusScanned)
+        assertEquals(ScanOptionStatus.WAITING_FOR_FIELD, waiting)
+        assertEquals(ScanOptionStatus.PREVIEW, previewWhileWaiting)
+        assertEquals(
+            ScanOptionStatus.FIELD_ALREADY_SCANNED,
+            ScanOptionStatusPolicy.resolve(
+                previewEnabled = false,
+                focusEnabled = false,
+                awaitingFieldChange = false,
+                fieldConsumed = true,
+            ),
+        ) // Turning Preview off restores the existing field's protection status.
+        assertEquals(
+            ScanOptionStatus.READY,
+            ScanOptionStatusPolicy.resolve(
+                previewEnabled = false,
+                focusEnabled = false,
+                awaitingFieldChange = false,
+                fieldConsumed = false,
+            ),
+        ) // A newly available destination field is ready for scanning.
+        assertTrue(ScanOptionStatusPolicy.mayOfferScanAgain(previouslyScanned, fieldConsumed = true))
+        assertTrue(ScanOptionStatusPolicy.mayOfferScanAgain(focusScanned, fieldConsumed = true))
+        assertTrue(ScanOptionStatusPolicy.mayOfferScanAgain(waiting, fieldConsumed = true))
+        assertFalse(ScanOptionStatusPolicy.mayOfferScanAgain(available, fieldConsumed = false))
+
+        assertTrue(ScanOptionStatusPolicy.shouldRefreshDisplayedStatus(
+            statusBelongsToScanOptions = true,
+            verifiedFieldChanged = false,
+            wasConsumed = false,
+            isConsumed = true,
+            wasAwaitingFieldChange = false,
+            isAwaitingFieldChange = false,
+        )) // Available → previously scanned.
+        assertTrue(ScanOptionStatusPolicy.shouldRefreshDisplayedStatus(
+            statusBelongsToScanOptions = true,
+            verifiedFieldChanged = false,
+            wasConsumed = true,
+            isConsumed = false,
+            wasAwaitingFieldChange = false,
+            isAwaitingFieldChange = false,
+        )) // Previously scanned → new available field.
+        assertTrue(ScanOptionStatusPolicy.shouldRefreshDisplayedStatus(
+            statusBelongsToScanOptions = true,
+            verifiedFieldChanged = true,
+            wasConsumed = false,
+            isConsumed = false,
+            wasAwaitingFieldChange = false,
+            isAwaitingFieldChange = false,
+        )) // A verified field change can also change status without changing the gate flag.
+        assertFalse(ScanOptionStatusPolicy.shouldRefreshDisplayedStatus(
+            statusBelongsToScanOptions = false,
+            verifiedFieldChanged = true,
+            wasConsumed = false,
+            isConsumed = true,
+            wasAwaitingFieldChange = false,
+            isAwaitingFieldChange = false,
+        )) // Preserve an unrelated camera or permission error.
+        assertFalse(ScanOptionStatusPolicy.shouldRefreshDisplayedStatus(
+            statusBelongsToScanOptions = true,
+            verifiedFieldChanged = false,
+            wasConsumed = false,
+            isConsumed = false,
+            wasAwaitingFieldChange = false,
+            isAwaitingFieldChange = false,
+        )) // Do not refresh repeatedly when a frame observes unchanged state.
+    }
+
+    @Test fun returningToScannedFieldShowsBlockedStatusAndNewFieldReturnsToReady() {
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val fieldA = EditorFieldKey(Any(), "example.app", 781)
+        val fieldB = EditorFieldKey(Any(), "example.app", 782)
+
+        coordinator.observeEditorContext(fieldA)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+        assertEquals(
+            ScanOptionStatus.FIELD_ALREADY_SCANNED,
+            ScanOptionStatusPolicy.resolve(
+                previewEnabled = false,
+                focusEnabled = false,
+                awaitingFieldChange = false,
+                fieldConsumed = gate.isConsumed(),
+            ),
+        )
+
+        assertTrue(coordinator.observeEditorContext(fieldB))
+        assertEquals(
+            ScanOptionStatus.READY,
+            ScanOptionStatusPolicy.resolve(
+                previewEnabled = false,
+                focusEnabled = false,
+                awaitingFieldChange = false,
+                fieldConsumed = gate.isConsumed(),
+            ),
+        )
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldB))
+
+        assertTrue(coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 781)))
+        assertEquals(
+            ScanOptionStatus.FIELD_ALREADY_SCANNED,
+            ScanOptionStatusPolicy.resolve(
+                previewEnabled = false,
+                focusEnabled = false,
+                awaitingFieldChange = false,
+                fieldConsumed = gate.isConsumed(),
+            ),
+        )
+    }
+
     @Test fun previewKeepsCompleteLongValuesAndRejectsSelectionsAfterClearOrSessionChange() {
         val state = PreviewCandidateState()
         val longValue = "A".repeat(500)
