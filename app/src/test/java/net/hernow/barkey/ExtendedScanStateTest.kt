@@ -409,7 +409,7 @@ class ExtendedScanStateTest {
         assertTrue(gate.isConsumed())
         val retryField = EditorFieldKey(Any(), "example.app", 711)
         coordinator.observeEditorContext(retryField)
-        assertTrue(coordinator.rearmExplicitly(retryField))
+        assertTrue(coordinator.rearmExplicitly(retryField, retryField))
         assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
         assertTrue(coordinator.recordSuccessfulInsertion(retryField))
         assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
@@ -420,6 +420,82 @@ class ExtendedScanStateTest {
         assertFalse(gate.isConsumed())
         coordinator.observeEditorContext(fieldB)
         coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 711))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun scanAgainRearmsOnlyTheLiveFieldAndRequiresAConsumedAllowance() {
+        val coordinator = ScanDeliveryCoordinator(SingleScanGate(), AutomaticActionController())
+        val fieldA = EditorFieldKey(Any(), "example.app", 741)
+        val fieldB = EditorFieldKey(Any(), "example.app", 742)
+        coordinator.observeEditorContext(fieldA)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+
+        assertFalse(coordinator.rearmExplicitly(fieldB, fieldB))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldB))
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 741))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+
+        assertTrue(coordinator.rearmExplicitly(fieldA, fieldA))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun scanAgainReconcilesAnUnobservedPreviouslyScannedDestination() {
+        val coordinator = ScanDeliveryCoordinator(SingleScanGate(), AutomaticActionController())
+        val fieldA = EditorFieldKey(Any(), "example.app", 751)
+        val fieldB = EditorFieldKey(Any(), "example.app", 752)
+        coordinator.observeEditorContext(fieldA)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+        coordinator.observeEditorContext(fieldB)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldB))
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 751))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+
+        // The editor has moved to B, but ordinary field observation has not run yet.
+        assertTrue(coordinator.rearmExplicitly(fieldB, fieldB))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 751))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        coordinator.observeEditorContext(fieldB)
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun staleIdlessScanAgainContextCannotRearmRecreatedEditor() {
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val staleConnection = Any()
+        val staleField = EditorFieldKey(staleConnection, "example.app", 0)
+        coordinator.observeEditorContext(staleField)
+        assertTrue(coordinator.recordSuccessfulInsertion(staleField))
+        coordinator.onInputSessionFinished()
+
+        val liveField = EditorFieldKey(Any(), "example.app", 0)
+        assertFalse(coordinator.rearmExplicitly(staleField, liveField))
+        assertTrue(gate.isConsumed())
+        assertTrue(coordinator.rearmExplicitly(liveField, liveField))
+        assertFalse(gate.isConsumed())
+        assertTrue(coordinator.recordSuccessfulInsertion(liveField))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun scanAgainClearsContinuousWaitOnlyAfterLiveBlockedFieldIsReconciled() {
+        val gate = SingleScanGate()
+        val actions = AutomaticActionController()
+        val coordinator = ScanDeliveryCoordinator(gate, actions)
+        val field = EditorFieldKey(Any(), "example.app", 761)
+        coordinator.observeEditorContext(field)
+        assertTrue(coordinator.recordSuccessfulInsertion(field))
+        actions.cycle(AutomaticScanAction.TAB, previewEnabled = false, editorPackageName = "example.app")
+        actions.cycle(AutomaticScanAction.TAB, previewEnabled = false, editorPackageName = "example.app")
+        actions.awaitFieldChange()
+
+        assertFalse(coordinator.rearmExplicitly(field, EditorFieldKey(Any(), "example.app", 761)))
+        assertTrue(actions.isAwaitingFieldChange())
+        assertTrue(coordinator.rearmExplicitly(field, field))
+        assertFalse(actions.isAwaitingFieldChange())
+        assertEquals(AutomaticActionState.CONTINUOUS, actions.state(AutomaticScanAction.TAB))
         assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
     }
 
@@ -475,7 +551,7 @@ class ExtendedScanStateTest {
         assertFalse(coordinator.recordSuccessfulInsertion()) // Still recorded as used; only Preview bypasses the gate.
         assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
         assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false)) // Focus uses the same field allowance.
-        assertTrue(coordinator.rearmExplicitly(field))
+        assertTrue(coordinator.rearmExplicitly(field, field))
         assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
     }
 

@@ -1460,11 +1460,18 @@ class BarcodeInputService : InputMethodService() {
 
     /** Rearms the current field only after a deliberate accessibility action. */
     private fun scanAgain() {
-        val currentField = currentFieldKey() ?: return
+        // First reconcile field history; the editor may have changed before a status tap arrived.
+        syncActiveEditorField()
+        val inputConnection = currentInputConnection
+        val sessionId = currentSessionId
+        val currentField = currentFieldKey()
         // Clear results queued before the explicit rearm so only a fresh frame may be delivered.
         invalidateScanCallbacks()
         clearPreviewCandidates()
-        if (!scanDelivery.rearmExplicitly(currentField)) return
+        if (inputConnection == null || currentField == null ||
+            !isCurrentScanContext(sessionId, inputConnection, currentField)
+        ) return
+        if (!scanDelivery.rearmExplicitly(currentField, currentFieldKey())) return
         setStatus(R.string.scan_again_rearmed)
         renderExtendedControls()
     }

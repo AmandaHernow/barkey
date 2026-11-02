@@ -429,12 +429,18 @@ internal class ScanDeliveryCoordinator(
         return true
     }
 
-    /** Scan Again requires a live key and a deliberate call from the status action. */
-    fun rearmExplicitly(currentField: EditorFieldKey?): Boolean {
-        currentField ?: return false
+    /**
+     * Reconciles with the still-live editor before changing its allowance. The caller supplies a
+     * fresh context snapshot so a stale status action cannot rearm a different editor.
+     */
+    fun rearmExplicitly(
+        intendedField: EditorFieldKey?,
+        liveFieldSnapshot: EditorFieldKey?,
+    ): Boolean {
+        val currentField = liveFieldSnapshot ?: return false
+        if (intendedField?.isSameEditorContext(currentField) != true) return false
+        observeEditorContext(currentField)
         if (!singleScanGate.rearmExplicitly()) return false
-        automaticActions.observeEditorPackage(currentField.packageName)
-        singleScanGate.moveTo(currentField)
         automaticActions.onExplicitRearm(currentField.packageName)
         return true
     }
