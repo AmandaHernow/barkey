@@ -266,12 +266,17 @@ internal data class EditorFieldKey(
         get() = fieldId > 0 && !packageName.isNullOrEmpty()
 }
 
-/** One accepted insertion per current editor; only a verified ID change or explicit action rearms. */
+/**
+ * Allows one automatic insertion per reliably identified field during this IME service lifetime.
+ * The history stores only package/field IDs, never InputConnections or scanned contents. It is
+ * cleared on service destruction; retaining exact IDs for this lifetime prevents revisiting a field
+ * from granting a fresh scan allowance. Evicting old entries would weaken that guarantee.
+ */
 internal class SingleScanGate {
-    /** Keep the last reliable ID when Android temporarily supplies incomplete editor metadata. */
-    private var lastReliableField: EditorFieldKey? = null
-    /** Remember reliable fields already scanned if an editor changes during commitText(). */
-    private val consumedReliableFields = linkedSetOf<ReliableFieldIdentity>()
+    /** Keep only package/ID when metadata is temporarily incomplete; never retain its connection. */
+    private var lastReliableField: ReliableFieldIdentity? = null
+    /** Exact service-lifetime history prevents revisits from becoming eligible after other fields. */
+    private val consumedReliableFields = hashSetOf<ReliableFieldIdentity>()
     /** Holds only the live current key; release it when Android finishes the editor session. */
     private var currentField: EditorFieldKey? = null
     private var hasCurrentEditor = false
@@ -280,10 +285,10 @@ internal class SingleScanGate {
     /** Moves the current key and rearms only when both keys prove a different field. */
     @Synchronized
     fun moveTo(next: EditorFieldKey): Boolean {
-        val previous = lastReliableField
-        val changed = previous?.identifiesDifferentReliableField(next) == true
-        if (changed) consumed = reliableIdentity(next) in consumedReliableFields
-        if (next.hasReliableFieldIdentity) lastReliableField = next
+        val nextIdentity = next.reliableIdentityOrNull()
+        val changed = lastReliableField != null && nextIdentity != null && lastReliableField != nextIdentity
+        if (changed) consumed = nextIdentity?.let(consumedReliableFields::contains) == true
+        if (nextIdentity != null) lastReliableField = nextIdentity
         currentField = next
         hasCurrentEditor = true
         return changed
@@ -296,6 +301,7 @@ internal class SingleScanGate {
     @Synchronized fun consume(): Boolean {
         if (!hasCurrentEditor || consumed) return false
         consumed = true
+        currentField?.let(::rememberConsumedField)
         return true
     }
 
@@ -314,15 +320,14 @@ internal class SingleScanGate {
         val activeField = currentField ?: return false
         if (activeField.isSameEditorContext(scannedField)) return consume()
 
-        // Retain only insertion records whose editor changed during commitText(); ordinary field
-        // navigation continues to use the existing single-current-field gate behaviour.
+        // Record against the captured source field even when commitText synchronously moved focus.
         rememberConsumedField(scannedField)
         if (!scannedField.identifiesDifferentReliableField(activeField)) {
             // A connection or metadata change alone cannot establish a safe new-field allowance.
             consumed = true
             return false
         }
-        consumed = reliableIdentity(activeField) in consumedReliableFields
+        consumed = reliableIdentity(activeField)?.let(consumedReliableFields::contains) == true
         return false
     }
 
@@ -348,7 +353,7 @@ internal class SingleScanGate {
      */
     @Synchronized
     fun finishInput() {
-        // Retain the last positive field ID but require a fresh editor key after this boundary.
+        // Retain only package/ID evidence; the next session must supply a fresh live editor key.
         hasCurrentEditor = false
         currentField = null
     }
@@ -362,18 +367,21 @@ internal class SingleScanGate {
         consumed = false
     }
 
-    private fun reliableIdentity(field: EditorFieldKey): ReliableFieldIdentity =
-        ReliableFieldIdentity(requireNotNull(field.packageName), field.fieldId)
+    private fun reliableIdentity(field: EditorFieldKey): ReliableFieldIdentity? =
+        field.reliableIdentityOrNull()
 
     private fun rememberConsumedField(field: EditorFieldKey) {
-        if (field.hasReliableFieldIdentity) consumedReliableFields += reliableIdentity(field)
+        reliableIdentity(field)?.let(consumedReliableFields::add)
     }
 
     private fun forgetConsumedField(field: EditorFieldKey) {
-        if (field.hasReliableFieldIdentity) consumedReliableFields -= reliableIdentity(field)
+        reliableIdentity(field)?.let(consumedReliableFields::remove)
     }
 
     private data class ReliableFieldIdentity(val packageName: String, val fieldId: Int)
+
+    private fun EditorFieldKey.reliableIdentityOrNull(): ReliableFieldIdentity? =
+        if (hasReliableFieldIdentity) ReliableFieldIdentity(requireNotNull(packageName), fieldId) else null
 }
 
 /** Coordinates preview delivery, field protection and post-scan readiness as one tested policy. */

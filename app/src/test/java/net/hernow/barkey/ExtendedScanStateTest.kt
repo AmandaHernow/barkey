@@ -377,6 +377,88 @@ class ExtendedScanStateTest {
         assertFalse(gate.isConsumed())
     }
 
+    @Test fun scannedFieldStaysProtectedWhenReturningAfterAnotherFieldWasScanned() {
+        val coordinator = ScanDeliveryCoordinator(SingleScanGate(), AutomaticActionController())
+        val fieldA = EditorFieldKey(Any(), "example.app", 701)
+        val fieldB = EditorFieldKey(Any(), "example.app", 702)
+
+        coordinator.observeEditorContext(fieldA)
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+
+        assertTrue(coordinator.observeEditorContext(fieldB))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldB))
+
+        assertTrue(coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 701)))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun scanAgainAndVerifiedUndoRearmOnlyTheCurrentFieldIdentity() {
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val fieldA = EditorFieldKey(Any(), "example.app", 711)
+        val fieldB = EditorFieldKey(Any(), "example.app", 712)
+        coordinator.observeEditorContext(fieldA)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+        coordinator.observeEditorContext(fieldB)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldB))
+
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 711))
+        assertFalse(coordinator.rearmAfterVerifiedUndo(fieldIsEmpty = false))
+        assertTrue(gate.isConsumed())
+        val retryField = EditorFieldKey(Any(), "example.app", 711)
+        coordinator.observeEditorContext(retryField)
+        assertTrue(coordinator.rearmExplicitly(retryField))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(coordinator.recordSuccessfulInsertion(retryField))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+
+        assertFalse(coordinator.rearmAfterVerifiedUndo(fieldIsEmpty = false))
+        assertTrue(gate.isConsumed())
+        assertTrue(coordinator.rearmAfterVerifiedUndo(fieldIsEmpty = true))
+        assertFalse(gate.isConsumed())
+        coordinator.observeEditorContext(fieldB)
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 711))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun previewSelectionsRemainDeliberateAndProtectThatFieldAfterReturning() {
+        val candidates = PreviewCandidateState()
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val fieldA = EditorFieldKey(Any(), "example.app", 721)
+        val fieldB = EditorFieldKey(Any(), "example.app", 722)
+        coordinator.observeEditorContext(fieldA)
+        candidates.update(listOf("one", "two"), 10)
+        val token = candidates.selectionToken()
+
+        assertTrue(coordinator.maySelectPreview(true, candidates, "one", 10, fieldA, fieldA, token))
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+        assertTrue(coordinator.maySelectPreview(true, candidates, "two", 10, fieldA, fieldA, token))
+        assertFalse(coordinator.recordSuccessfulInsertion(fieldA))
+
+        coordinator.observeEditorContext(fieldB)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldB))
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 721))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun serviceResetClearsIdentityHistoryWithoutRetainingEditorSessions() {
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val fieldA = EditorFieldKey(Any(), "example.app", 731)
+        val fieldB = EditorFieldKey(Any(), "example.app", 732)
+        coordinator.observeEditorContext(fieldA)
+        assertTrue(coordinator.recordSuccessfulInsertion(fieldA))
+        coordinator.onInputSessionFinished()
+        coordinator.observeEditorContext(fieldB)
+        coordinator.reset() // Mirrors InputMethodService.onDestroy and releases service-lifetime IDs.
+
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 731))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
     @Test fun previewCanRecordSeveralManualScansButNormalAndFocusStayBlocked() {
         val connection = Any()
         val field = EditorFieldKey(connection, "example.app", 0)
@@ -518,6 +600,14 @@ class ExtendedScanStateTest {
         coordinator.observeEditorContext(source)
         assertTrue(gate.isConsumed())
         assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+
+        coordinator.observeEditorContext(destination)
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(coordinator.recordSuccessfulInsertion(destination))
+        coordinator.observeEditorContext(source)
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        coordinator.observeEditorContext(destination)
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
     }
 
     @Test fun synchronousSessionFinishDuringCommitRetainsTheSourceFieldAllowance() {
@@ -532,7 +622,7 @@ class ExtendedScanStateTest {
         assertTrue(gate.isConsumed())
     }
 
-    @Test fun singleScanInputSessionRestartKeepsStableFieldAllowanceAndReleasesConnectionReference() {
+    @Test fun singleScanInputSessionRestartPreservesReliableFieldIdentity() {
         val gate = SingleScanGate()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 31))
         assertTrue(gate.consume())
@@ -563,7 +653,7 @@ class ExtendedScanStateTest {
         assertTrue(single.isConsumed())
         assertFalse(single.moveTo(EditorFieldKey(Any(), "example.app", 5)))
         assertTrue(single.isConsumed())
-        single.reset() // disabling Single Scan returns to continuous mode
+        single.reset() // Service reset clears all per-field delivery history.
         single.moveTo(EditorFieldKey(Any(), "example.app", 5))
         assertFalse(single.isConsumed())
         single.consume()
