@@ -6,15 +6,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Checks Preview, Focus and Single Scan state and geometry. */
+/** Checks Preview, Focus, per-field protection and geometry. */
 class ExtendedScanStateTest {
-    @Test fun previewAndSingleScanCannotBeEnabledAtTheSameTime() {
-        assertTrue(ScanOptionPolicy.canEnablePreview(singleScanEnabled = false))
-        assertFalse(ScanOptionPolicy.canEnablePreview(singleScanEnabled = true))
-        assertTrue(ScanOptionPolicy.canEnableSingleScan(previewEnabled = false))
-        assertFalse(ScanOptionPolicy.canEnableSingleScan(previewEnabled = true))
-    }
-
     @Test fun previewSuppressesAutomaticInsertionAndAllowsOnlyLiveDistinctCandidates() {
         val state = PreviewCandidateState(expiryMillis = 1_000)
         assertTrue(PreviewDeliveryPolicy.mayInsertAutomatically(previewEnabled = false))
@@ -309,10 +302,10 @@ class ExtendedScanStateTest {
         val previousGeneration = callbacks.current()
         assertTrue(focus.update(FocusRegionGeometry.RectF(0.3f, 0.3f, 0.7f, 0.7f), focusEnabled = true))
         assertFalse(callbacks.accepts(previousGeneration))
-        assertFalse(singleScanDecodeAllowed(enabled = true, gate = single))
+        assertFalse(singleScanDecodeAllowed(gate = single))
         assertEquals(emptyList<String>(), candidates.expire(30))
         single.moveTo(EditorFieldKey(Any(), "example.app", 10))
-        assertTrue(singleScanDecodeAllowed(enabled = true, gate = single))
+        assertTrue(singleScanDecodeAllowed(gate = single))
     }
 
     @Test fun singleScanConsumesOnlyAfterSuccessfulInsertionAndSurvivesViewRedraw() {
@@ -331,15 +324,15 @@ class ExtendedScanStateTest {
         assertFalse(gate.isConsumed())
     }
 
-    @Test fun singleScanUsesConnectionFallbackForMissingIdsAndTreatsReusedIdsConservatively() {
+    @Test fun missingIdsAndRecreatedConnectionsNeverRearmAutomatically() {
         val gate = SingleScanGate()
         val connection = Any()
         gate.moveTo(EditorFieldKey(connection, "example.app", 0))
         assertTrue(gate.consume())
         assertFalse(gate.moveTo(EditorFieldKey(connection, "example.app", 0)))
         assertTrue(gate.isConsumed())
-        assertTrue(gate.moveTo(EditorFieldKey(Any(), "example.app", 0)))
-        assertFalse(gate.isConsumed())
+        assertFalse(gate.moveTo(EditorFieldKey(Any(), "example.app", 0)))
+        assertTrue(gate.isConsumed())
 
         gate.moveTo(EditorFieldKey(connection, "example.app", 12))
         gate.consume()
@@ -358,13 +351,13 @@ class ExtendedScanStateTest {
         assertFalse(gate.isConsumed())
     }
 
-    @Test fun singleScanWithMissingFieldIdResetsAtSessionBoundaryBecauseIdentityIsUnavailable() {
+    @Test fun missingFieldIdRemainsConsumedAcrossSessionRecreation() {
         val gate = SingleScanGate()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 0))
         assertTrue(gate.consume())
         gate.finishInput()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 0))
-        assertFalse(gate.isConsumed())
+        assertTrue(gate.isConsumed())
     }
 
     @Test fun singleScanConsumesOnlyAfterSuccessfulInsertionAndCanReset() {
@@ -386,46 +379,44 @@ class ExtendedScanStateTest {
         assertTrue(single.isConsumed())
     }
 
-    @Test fun singleScanDecodePolicySkipsOnlyConsumedEnabledFieldsAndResumesOnModeOrFieldChange() {
+    @Test fun oneScanDecodePolicySkipsConsumedFieldsUntilAStableFieldChange() {
         val gate = SingleScanGate()
         val callbacks = CallbackGeneration()
         val firstConnection = Any()
         gate.moveTo(EditorFieldKey(firstConnection, "example.app", 51))
-        assertTrue(singleScanDecodeAllowed(enabled = false, gate = gate)) // Continuous mode.
-        assertTrue(singleScanDecodeAllowed(enabled = true, gate = gate)) // Unused field.
+        assertTrue(singleScanDecodeAllowed(gate = gate)) // Unused field.
         assertTrue(gate.consume())
-        assertFalse(singleScanDecodeAllowed(enabled = true, gate = gate)) // One successful insertion.
-        assertTrue(singleScanDecodeAllowed(enabled = false, gate = gate)) // Disabling immediately resumes.
+        assertFalse(singleScanDecodeAllowed(gate = gate)) // One successful insertion.
         val delayedResultGeneration = callbacks.current()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 52))
         callbacks.advance() // Production field synchronization invalidates queued results here.
-        assertTrue(singleScanDecodeAllowed(enabled = true, gate = gate)) // Recognised field change.
+        assertTrue(singleScanDecodeAllowed(gate = gate)) // Recognised field change.
         assertFalse(callbacks.accepts(delayedResultGeneration))
     }
 
-    @Test fun singleScanDecodePolicyLeavesFailedInsertionActiveAndSurvivesCameraRestartAndStableSessionRestart() {
+    @Test fun oneScanGateLeavesFailedInsertionActiveAndSurvivesCameraRestartAndStableSessionRestart() {
         val gate = SingleScanGate()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 61))
-        assertTrue(singleScanDecodeAllowed(enabled = true, gate = gate)) // Failed commit does not consume.
+        assertTrue(singleScanDecodeAllowed(gate = gate)) // Failed commit does not consume.
         // Camera restart has no gate mutation; the same field remains eligible until insertion succeeds.
-        assertTrue(singleScanDecodeAllowed(enabled = true, gate = gate))
+        assertTrue(singleScanDecodeAllowed(gate = gate))
         assertTrue(gate.consume())
         gate.finishInput()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 61))
-        assertFalse(singleScanDecodeAllowed(enabled = true, gate = gate)) // Same identifiable field.
+        assertFalse(singleScanDecodeAllowed(gate = gate)) // Same identifiable field.
         gate.moveTo(EditorFieldKey(Any(), "example.app", 62))
-        assertTrue(singleScanDecodeAllowed(enabled = true, gate = gate))
+        assertTrue(singleScanDecodeAllowed(gate = gate))
     }
 
     @Test fun modeChangesRejectCallbacksCapturedByAnOlderSettingsGeneration() {
         val generation = CallbackGeneration()
         val before = generation.current()
         assertTrue(generation.accepts(before))
-        generation.advance() // Preview, Focus, Single Scan or Fast/Accurate changed while decoding.
+        generation.advance() // Preview, Focus or Fast/Accurate changed while decoding.
         assertFalse(generation.accepts(before))
         assertTrue(generation.accepts(generation.current()))
     }
 
-    private fun singleScanDecodeAllowed(enabled: Boolean, gate: SingleScanGate): Boolean =
-        SingleScanDecodePolicy.shouldDecode(enabled, gate.isConsumed())
+    private fun singleScanDecodeAllowed(gate: SingleScanGate): Boolean =
+        SingleScanDecodePolicy.shouldDecode(gate.isConsumed())
 }

@@ -137,7 +137,7 @@ internal class AboutHelpPanel(
                 R.string.help_torch,
                 R.string.help_preview,
                 R.string.help_focus_region,
-                R.string.help_single_scan,
+                R.string.help_one_scan_per_field,
                 R.string.help_extended_combinations,
             ).forEach { addBody(context, section, it) }
             addBody(context, section, R.string.help_navigation_note)

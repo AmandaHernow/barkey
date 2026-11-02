@@ -334,7 +334,7 @@ class SetupActivity : Activity() {
             R.string.setup_controls_accurate,
             R.string.setup_controls_preview,
             R.string.setup_controls_focus,
-            R.string.setup_controls_single_scan,
+            R.string.setup_controls_auto_actions,
             R.string.setup_controls_torch,
             R.string.setup_controls_tap_focus,
         ))

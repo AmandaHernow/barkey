@@ -92,6 +92,7 @@ class BarcodeInputService : InputMethodService() {
     // Keeps visible Preview buttons in place while newly detected candidates arrive.
     private val previewCandidateButtons = linkedMapOf<String, Button>()
     private val singleScanGate = SingleScanGate()
+    private val automaticActions = AutomaticActionController()
     private var activeEditorField: EditorFieldKey? = null
     private val settingsCallbackGeneration = CallbackGeneration()
     private val focusRegionState = FocusRegionState(settingsCallbackGeneration, previewCandidateState)
@@ -114,10 +115,10 @@ class BarcodeInputService : InputMethodService() {
     private var focusOverlay: View? = null
     private var previewToggleButton: Button? = null
     private var focusToggleButton: Button? = null
-    private var singleScanToggleButton: Button? = null
+    private var autoTabButton: Button? = null
+    private var autoEnterButton: Button? = null
     @Volatile private var previewEnabled = false
     @Volatile private var focusEnabled = false
-    @Volatile private var singleScanEnabled = false
     private val extendedGeneration: Long get() = settingsCallbackGeneration.current()
     // Publishes the transform and its matching view size as one camera-worker-safe value.
     @Volatile private var previewTransformSnapshot: PreviewTransformSnapshot? = null
@@ -298,6 +299,7 @@ class BarcodeInputService : InputMethodService() {
             minHeight = dp(52)
             contentDescription = getString(R.string.scanner_status_description)
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            setOnClickListener { scanAgain() }
         }
         val statusRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -353,8 +355,13 @@ class BarcodeInputService : InputMethodService() {
                 true
             }
         }
-        val singleButton = modeToggle(getString(R.string.single_scan_toggle), getString(R.string.single_scan_accessibility)) { toggleSingleScan() }
-        listOf(previewButton, focusButton, singleButton).forEach { button ->
+        val tabButton = modeToggle(getString(R.string.auto_tab_off), getString(R.string.auto_tab_off_accessibility)) {
+            cycleAutomaticAction(AutomaticScanAction.TAB)
+        }
+        val enterButton = modeToggle(getString(R.string.auto_enter_off), getString(R.string.auto_enter_off_accessibility)) {
+            cycleAutomaticAction(AutomaticScanAction.ENTER)
+        }
+        listOf(previewButton, focusButton, tabButton, enterButton).forEach { button ->
             modeControls.addView(button, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(dp(1), 0, dp(1), 0)
             })
@@ -778,7 +785,8 @@ class BarcodeInputService : InputMethodService() {
         focusOverlay = focusRegion
         previewToggleButton = previewButton
         focusToggleButton = focusButton
-        singleScanToggleButton = singleButton
+        autoTabButton = tabButton
+        autoEnterButton = enterButton
         preview.visibility = View.VISIBLE
         focusRegion.visibility = if (focusEnabled) View.VISIBLE else View.GONE
         clearPreviewCandidates()
@@ -800,7 +808,8 @@ class BarcodeInputService : InputMethodService() {
             add(enableCamera)
             add(previewButton)
             add(focusButton)
-            add(singleButton)
+            add(tabButton)
+            add(enterButton)
         }
         applyKeyboardTheme()
         renderExtendedControls()
@@ -1075,6 +1084,8 @@ class BarcodeInputService : InputMethodService() {
         stopBackspaceRepeat()
         resetHelpPanelForHiddenWindow()
         inputEditor.clearUndo()
+        automaticActions.reset()
+        renderExtendedControls()
         clearPreviewCandidates()
         refreshUndoButton()
         stopCamera()
@@ -1087,10 +1098,10 @@ class BarcodeInputService : InputMethodService() {
         stopCamera()
         clearPendingResults()
         inputEditor.clearUndo()
+        automaticActions.reset()
         sessionGate.endSession()
-        // Preserve a recognisable field's allowance through an editor handoff while dropping its
-        // old InputConnection; onStartInput releases it if Android reports a different field.
-        // ID-less editors cannot be matched safely across finished input sessions.
+        // Preserve the consumed allowance through an editor handoff while dropping the old
+        // InputConnection. Only a stable, different field ID can rearm it in the next session.
         singleScanGate.finishInput()
         activeEditorField = null
         currentSessionId = 0L
@@ -1405,11 +1416,8 @@ class BarcodeInputService : InputMethodService() {
 
     /** Pauses automatic insertion and clears suggestions when Preview changes. */
     private fun togglePreview() {
-        if (!ScanOptionPolicy.canEnablePreview(singleScanEnabled)) {
-            setStatus(R.string.preview_blocked_by_single_scan)
-            return
-        }
         previewEnabled = !previewEnabled
+        if (previewEnabled) automaticActions.onPreviewEnabled()
         clearPreviewCandidates()
         invalidateScanCallbacks()
         showScanOptionStatus()
@@ -1431,65 +1439,100 @@ class BarcodeInputService : InputMethodService() {
         renderExtendedControls()
     }
 
-    /** Allows one successful insertion for each recognised field. */
-    private fun toggleSingleScan() {
-        if (!ScanOptionPolicy.canEnableSingleScan(previewEnabled)) {
-            setStatus(R.string.single_scan_blocked_by_preview)
-            return
-        }
-        singleScanEnabled = !singleScanEnabled
-        if (!singleScanEnabled) singleScanGate.reset() else currentFieldKey()?.let(singleScanGate::moveTo)
+    /** Advances one automatic-action control and invalidates already queued camera results. */
+    private fun cycleAutomaticAction(action: AutomaticScanAction) {
+        if (previewEnabled) return
+        automaticActions.cycle(action, previewEnabled = false)
         invalidateScanCallbacks()
         clearPreviewCandidates()
         showScanOptionStatus()
         renderExtendedControls()
     }
 
+    /** Rearms the current field only after a deliberate accessibility action. */
+    private fun scanAgain() {
+        if (!singleScanGate.rearmExplicitly()) return
+        automaticActions.onExplicitRearm()
+        currentFieldKey()?.let(singleScanGate::moveTo)
+        setStatus(R.string.scan_again_rearmed)
+        renderExtendedControls()
+    }
+
     /** Shows the current option's next step in the status area. */
     private fun showScanOptionStatus() {
         val messageId = when {
-            singleScanEnabled && singleScanGate.isConsumed() && focusEnabled -> R.string.focus_single_scan_used
-            singleScanEnabled && singleScanGate.isConsumed() -> R.string.single_scan_used
+            automaticActions.isAwaitingFieldChange() -> R.string.auto_action_waiting_for_field
+            singleScanGate.isConsumed() && focusEnabled -> R.string.focus_scan_field_used
+            singleScanGate.isConsumed() -> R.string.scan_field_used
             previewEnabled && focusEnabled -> R.string.preview_focus_modes_active
             previewEnabled -> R.string.preview_empty
-            focusEnabled && singleScanEnabled -> R.string.focus_single_scan_modes_active
             focusEnabled -> R.string.focus_mode_active
-            singleScanEnabled -> R.string.single_scan_mode_active
             else -> R.string.scanner_ready
         }
         setStatus(messageId)
     }
 
-    /** Mutes conflicting modes but keeps them tappable so the status can explain why. */
+    /** Applies the selected visual state and accessibility label to the four feature controls. */
     private fun renderExtendedControls() {
-        fun render(button: Button?, selected: Boolean, blocked: Boolean = false, blockedDescription: Int? = null) {
+        fun render(button: Button?, selected: Boolean) {
             button ?: return
             button.isActivated = selected
             button.setBackgroundResource(if (selected) R.drawable.scan_mode_button_background else R.drawable.keyboard_button_background)
             button.backgroundTintList = null
             button.setTextColor(ContextCompat.getColorStateList(this, R.color.keyboard_button_text))
-            button.alpha = if (blocked) 0.5f else 1f
-            button.contentDescription = getString(blockedDescription ?: when (button) {
+            button.alpha = 1f
+            button.contentDescription = getString(when (button) {
                 previewToggleButton -> R.string.preview_accessibility
                 focusToggleButton -> R.string.focus_accessibility
-                singleScanToggleButton -> if (singleScanGate.isConsumed()) R.string.single_scan_used else R.string.single_scan_accessibility
-                else -> R.string.single_scan_accessibility
+                autoTabButton -> automaticActionDescription(AutomaticScanAction.TAB)
+                autoEnterButton -> automaticActionDescription(AutomaticScanAction.ENTER)
+                else -> R.string.scanner_ready
             })
             button.isEnabled = true
         }
-        render(
-            previewToggleButton,
-            previewEnabled,
-            blocked = !ScanOptionPolicy.canEnablePreview(singleScanEnabled),
-            blockedDescription = R.string.preview_blocked_accessibility,
-        )
+        render(previewToggleButton, previewEnabled)
         render(focusToggleButton, focusEnabled)
-        render(
-            singleScanToggleButton,
-            singleScanEnabled,
-            blocked = !ScanOptionPolicy.canEnableSingleScan(previewEnabled),
-            blockedDescription = R.string.single_scan_blocked_accessibility,
-        )
+        renderAutomaticButton(autoTabButton, AutomaticScanAction.TAB)
+        renderAutomaticButton(autoEnterButton, AutomaticScanAction.ENTER)
+    }
+
+    private fun renderAutomaticButton(button: Button?, action: AutomaticScanAction) {
+        val state = automaticActions.state(action)
+        button ?: return
+        button.text = getString(automaticActionLabel(action, state))
+        button.contentDescription = getString(automaticActionDescription(action))
+        button.isActivated = state != AutomaticActionState.OFF
+        button.setBackgroundResource(if (state != AutomaticActionState.OFF) R.drawable.scan_mode_button_background else R.drawable.keyboard_button_background)
+        button.backgroundTintList = null
+        button.setTextColor(ContextCompat.getColorStateList(this, R.color.keyboard_button_text))
+        button.alpha = 1f
+        button.isEnabled = true
+    }
+
+    private fun automaticActionLabel(action: AutomaticScanAction, state: AutomaticActionState): Int = when (action) {
+        AutomaticScanAction.TAB -> when (state) {
+            AutomaticActionState.OFF -> R.string.auto_tab_off
+            AutomaticActionState.ONCE -> R.string.auto_tab_once
+            AutomaticActionState.CONTINUOUS -> R.string.auto_tab_continuous
+        }
+        AutomaticScanAction.ENTER -> when (state) {
+            AutomaticActionState.OFF -> R.string.auto_enter_off
+            AutomaticActionState.ONCE -> R.string.auto_enter_once
+            AutomaticActionState.CONTINUOUS -> R.string.auto_enter_continuous
+        }
+    }
+
+    private fun automaticActionDescription(action: AutomaticScanAction): Int = when (action) {
+        AutomaticScanAction.TAB -> when (automaticActions.state(action)) {
+            AutomaticActionState.OFF -> R.string.auto_tab_off_accessibility
+            AutomaticActionState.ONCE -> R.string.auto_tab_once_accessibility
+            AutomaticActionState.CONTINUOUS -> R.string.auto_tab_continuous_accessibility
+        }
+        AutomaticScanAction.ENTER -> when (automaticActions.state(action)) {
+            AutomaticActionState.OFF -> R.string.auto_enter_off_accessibility
+            AutomaticActionState.ONCE -> R.string.auto_enter_once_accessibility
+            AutomaticActionState.CONTINUOUS -> R.string.auto_enter_continuous_accessibility
+        }
     }
 
     /** Saves the region in preview-relative coordinates and clears stale results. */
@@ -1652,9 +1695,9 @@ class BarcodeInputService : InputMethodService() {
             invalidateScanCallbacks()
             clearPreviewCandidates()
         }
-        if (!singleScanEnabled) return
         val wasConsumed = singleScanGate.isConsumed()
-        singleScanGate.moveTo(next)
+        val stableFieldChanged = singleScanGate.moveTo(next)
+        if (stableFieldChanged) automaticActions.onFieldChanged()
         if (wasConsumed && !singleScanGate.isConsumed()) {
             showScanOptionStatus()
             renderExtendedControls()
@@ -1719,7 +1762,7 @@ class BarcodeInputService : InputMethodService() {
                             },
                             settingsGeneration = { extendedGeneration },
                             shouldDecode = {
-                                SingleScanDecodePolicy.shouldDecode(singleScanEnabled, singleScanGate.isConsumed())
+                                previewEnabled || SingleScanDecodePolicy.shouldDecode(singleScanGate.isConsumed())
                             },
                             onDecoded = ::onDecoded,
                             onFailure = ::onDecoderFailure,
@@ -1970,31 +2013,47 @@ class BarcodeInputService : InputMethodService() {
                 return@resultCallback
             }
             val value = values.firstOrNull() ?: return@resultCallback
-            if (singleScanEnabled) {
-                currentFieldKey()?.let(singleScanGate::moveTo)
-                if (singleScanGate.isConsumed()) {
-                    setStatus(R.string.single_scan_used)
-                    renderExtendedControls()
-                    return@resultCallback
-                }
+            currentFieldKey()?.let(singleScanGate::moveTo)
+            if (automaticActions.isAwaitingFieldChange()) {
+                setStatus(R.string.auto_action_waiting_for_field)
+                return@resultCallback
+            }
+            if (singleScanGate.isConsumed()) {
+                setStatus(if (focusEnabled) R.string.focus_scan_field_used else R.string.scan_field_used)
+                renderExtendedControls()
+                return@resultCallback
             }
             insertDecodedValue(value, sessionId, cameraGeneration, modeGeneration, settingsGeneration)
         }, callbackToken, SystemClock.uptimeMillis())
     }
 
     /** Inserts a checked value, then applies the configured suffix if insertion succeeds. */
-    private fun insertDecodedValue(value: String, sessionId: Long, cameraGeneration: Long, modeGeneration: Long, settingsGeneration: Long) {
+    private fun insertDecodedValue(
+        value: String,
+        sessionId: Long,
+        cameraGeneration: Long,
+        modeGeneration: Long,
+        settingsGeneration: Long,
+        isPreviewSelection: Boolean = false,
+    ) {
         syncActiveEditorField()
         if (helpVisible || !sessionGate.isCurrent(sessionId) || cameraGeneration != cameraRequestId ||
             !scanModes.isCurrent(modeGeneration) || settingsGeneration != extendedGeneration
         ) return
-        if (singleScanEnabled) {
-            currentFieldKey()?.let(singleScanGate::moveTo)
-            if (singleScanGate.isConsumed()) {
-                setStatus(R.string.single_scan_used)
+        val fieldKey = currentFieldKey()
+        if (fieldKey == null) {
+            setStatus(R.string.scan_delivery_failed)
+            return
+        }
+        singleScanGate.moveTo(fieldKey)
+        if (!isPreviewSelection && (automaticActions.isAwaitingFieldChange() || singleScanGate.isConsumed())) {
+            if (automaticActions.isAwaitingFieldChange()) {
+                setStatus(R.string.auto_action_waiting_for_field)
+            } else {
+                setStatus(if (focusEnabled) R.string.focus_scan_field_used else R.string.scan_field_used)
                 renderExtendedControls()
-                return
             }
+            return
         }
         val inputConnection: InputConnection = currentInputConnection ?: return
         if (!sessionGate.shouldAccept(sessionId, value, SystemClock.elapsedRealtime())) return
@@ -2014,13 +2073,61 @@ class BarcodeInputService : InputMethodService() {
             setStatus(R.string.scan_delivery_failed)
             return
         }
-        if (singleScanEnabled) singleScanGate.consume()
-        currentSuffix.keyCode?.let { keyCode ->
-            inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
-            inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
-        }
+        if (!isPreviewSelection) singleScanGate.consume()
         refreshUndoButton()
-        setStatus(if (singleScanEnabled) R.string.single_scan_used else R.string.scan_inserted)
+        val postAction = ScanPostActionPolicy.resolve(
+            automaticAction = automaticActions.actionForScan(previewEnabled),
+            isPreviewSelection = isPreviewSelection,
+            managedSuffix = currentSuffix,
+        )
+        when (postAction) {
+            is ScanPostAction.Automatic -> executePostScanAction(
+                postAction.action,
+                automaticActions.stateForScan(previewEnabled),
+                inputConnection,
+                fieldKey,
+            )
+            is ScanPostAction.ManagedSuffix -> postAction.suffix.keyCode?.let { keyCode ->
+                inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
+                inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
+            }
+            ScanPostAction.None -> Unit
+        }
+        if (postAction !is ScanPostAction.Automatic) {
+            setStatus(if (singleScanGate.isConsumed()) R.string.scan_field_used else R.string.scan_inserted)
+        }
+        renderExtendedControls()
+    }
+
+    /** Executes one selected action after insertion, replacing the managed suffix for this scan. */
+    private fun executePostScanAction(
+        action: AutomaticScanAction,
+        state: AutomaticActionState,
+        inputConnection: InputConnection,
+        scannedField: EditorFieldKey,
+    ) {
+        if (state == AutomaticActionState.CONTINUOUS) automaticActions.awaitFieldChange()
+        val editorConnection = AndroidEditorConnection(inputConnection)
+        val succeeded = when (action) {
+            AutomaticScanAction.TAB -> inputEditor.nextField(editorConnection, currentInputEditorInfo)
+            AutomaticScanAction.ENTER -> inputEditor.enter(editorConnection, currentInputEditorInfo)
+        }
+        if (state == AutomaticActionState.ONCE) automaticActions.completeOnce()
+
+        when {
+            !succeeded && action == AutomaticScanAction.TAB -> setStatus(R.string.auto_tab_navigation_failed)
+            !succeeded && action == AutomaticScanAction.ENTER -> setStatus(R.string.auto_enter_action_failed)
+            state == AutomaticActionState.ONCE -> setStatus(R.string.auto_action_once_complete)
+            else -> {
+                // An accepted command is not proof that the host changed or reset its field.
+                if (currentFieldKey()?.identifiesDifferentReliableField(scannedField) != true) {
+                    setStatus(R.string.auto_action_waiting_for_field)
+                } else {
+                    automaticActions.onFieldChanged()
+                    setStatus(R.string.auto_action_waiting_for_field)
+                }
+            }
+        }
         renderExtendedControls()
     }
 
@@ -2058,7 +2165,7 @@ class BarcodeInputService : InputMethodService() {
                             editorContext, currentFieldKey(), selectionToken,
                         )
                     ) return@setOnClickListener
-                    insertDecodedValue(value, sessionId, cameraGeneration, modeGeneration, settingsGeneration)
+                    insertDecodedValue(value, sessionId, cameraGeneration, modeGeneration, settingsGeneration, isPreviewSelection = true)
                 }
             }
             styleKeyboardButton(suggestion, 13f)
@@ -2079,7 +2186,15 @@ class BarcodeInputService : InputMethodService() {
     }
 
     private fun setStatus(messageId: Int) {
-        statusView?.setText(messageId)
+        statusView?.apply {
+            setText(messageId)
+            val scanAgainAvailable = singleScanGate.isConsumed()
+            isClickable = scanAgainAvailable
+            isFocusable = scanAgainAvailable
+            contentDescription = getString(
+                if (scanAgainAvailable) R.string.scan_again_accessibility else R.string.scanner_status_description,
+            ) + if (scanAgainAvailable) " " + getString(messageId) else ""
+        }
     }
 
     /** Keeps permission controls and status aligned with Android's current grant. */
@@ -2279,7 +2394,7 @@ class BarcodeInputService : InputMethodService() {
         }
         if (undone) {
             val editor = currentInputConnection?.let(::AndroidEditorConnection)
-            if (singleScanEnabled && singleScanGate.rearmAfterUndo(inputEditor.isFieldEmpty(editor))) {
+            if (singleScanGate.rearmAfterUndo(inputEditor.isFieldEmpty(editor))) {
                 renderExtendedControls()
             }
             setStatus(R.string.scan_undo_complete)

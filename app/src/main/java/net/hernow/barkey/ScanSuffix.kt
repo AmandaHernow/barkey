@@ -24,6 +24,27 @@ internal enum class ScanSuffix(val keyCode: Int?) {
     }
 }
 
+/** The single post-scan operation chosen after insertion has succeeded. */
+internal sealed class ScanPostAction {
+    data class Automatic(val action: AutomaticScanAction) : ScanPostAction()
+    data class ManagedSuffix(val suffix: ScanSuffix) : ScanPostAction()
+    object None : ScanPostAction()
+}
+
+/** Gives an explicitly selected automatic action precedence over the managed suffix. */
+internal object ScanPostActionPolicy {
+    /** Preview blocks an automatic action; otherwise an active action takes suffix precedence. */
+    fun resolve(
+        automaticAction: AutomaticScanAction?,
+        isPreviewSelection: Boolean,
+        managedSuffix: ScanSuffix,
+    ): ScanPostAction = when {
+        automaticAction != null && !isPreviewSelection -> ScanPostAction.Automatic(automaticAction)
+        managedSuffix != ScanSuffix.NONE -> ScanPostAction.ManagedSuffix(managedSuffix)
+        else -> ScanPostAction.None
+    }
+}
+
 /** Reads the managed scan suffix and falls back to no action. */
 internal object ScanSettings {
     const val SUFFIX_RESTRICTION = "scan_suffix"

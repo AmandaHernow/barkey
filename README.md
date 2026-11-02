@@ -12,8 +12,9 @@ BarKey is free for private, personal use. Company and workplace use require my p
 - Inserts a decoded value at the cursor in the active text field.
 - Offers **Fast** mode for ordinary scans and **Accurate** mode for difficult, angled or damaged codes. Accurate mode can take longer.
 - Lets you tap the camera preview to request focus and exposure at that point. A torch control is available when the camera supports flash.
-- Provides **Preview**, **Focus** and **Single Scan** options. Preview lets you choose from detected values before insertion. Focus limits scanning to a movable, resizable area and uses the selected scan mode. Keep the whole code and a little clear space around it inside the area; enlarge the area if a code is missed. Single Scan allows one successful insertion per recognised text field. Focus works with Preview or Single Scan, but Preview and Single Scan cannot be used together.
-- Includes **Undo** for up to 20 recent BarKey scans or Space insertions when the current text field can be checked safely. Undo history is held in memory and cleared when BarKey restarts. Undoing a scan in an otherwise empty field makes it available for another Single Scan.
+- Provides **Preview**, **Focus**, **Auto Tab** and **Auto Enter**. Preview lets you choose detected values before insertion. Focus limits scanning to a movable, resizable area. Each automatic-action button cycles through Off, ×1 and ∞; only one can be active. Both work with Focus and are turned off in Preview.
+- Automatic scanning allows one successful insertion per field by default. BarKey rearms only when Android provides a stable, different field ID in the same app. Tap the status message for **Scan Again** when the app does not expose a reliable field change. A safely verified Undo can also rearm scanning when the field is empty.
+- Includes **Undo** for up to 20 recent BarKey scans or Space insertions when the current text field can be checked safely. Undo history is held in memory and cleared when BarKey restarts.
 - Includes Backspace, Space, Left, Right, Tab and Enter controls, plus options to switch keyboards or hide BarKey.
 - Provides portrait and landscape layouts, follows Android’s light or dark appearance, and lets you resize the docked keyboard.
 - Includes an in-keyboard **About & Help** panel and a setup guide for enabling BarKey in Android settings.
@@ -23,7 +24,7 @@ BarKey is free for private, personal use. Company and workplace use require my p
 <table>
   <tr>
     <th>Setup guide</th>
-    <th>Focus with Single Scan</th>
+    <th>Focus with Auto Tab</th>
     <th>Preview suggestions</th>
   </tr>
   <tr>
@@ -45,9 +46,10 @@ Android controls which keyboards are enabled and selected. BarKey does not chang
 ## Using the scanner
 
 - **Fast / Accurate:** Choose the mode that suits the code. Accurate mode searches more thoroughly and may be slower.
-- **Preview:** Pause automatic insertion and tap a detected suggestion to insert it. Suggestions are temporary and are not scan history. Preview cannot be used with Single Scan.
+- **Preview:** Pause automatic insertion and tap a detected suggestion to insert it. Suggestions are temporary and are not scan history. Selecting candidates never performs Auto Tab or Auto Enter; you can deliberately select multiple suggestions.
 - **Focus:** Drag the outlined area over the code. Drag its corner handle to resize it, or long-press Focus to reset it. Keep the whole code and a little clear space inside the outline. Tapping the preview requests autofocus; it does not move the scan area.
-- **Single Scan:** Allow one successful insertion in each text field BarKey can recognise. Some apps do not expose enough information for BarKey to recognise field changes.
+- **Auto Tab / Auto Enter:** Each button cycles through Off, ×1 and ∞. ×1 inserts one value, requests Tab or performs Enter, then turns Off. ∞ pauses after every action until a different field is reliably identified. Tab only uses the editor's advertised Next action; BarKey does not send Enter when Tab is unsupported. Enter behaviour depends on the host editor and may submit a form.
+- **One scan per field:** This protection is always active for automatic scanning. If an app does not expose a stable field ID, tap the status message to Scan Again. Undo rearms only after a safe deletion is verified and the field is empty. With both automatic actions Off, the managed `scan_suffix` setting retains its existing behaviour; an active Auto Tab or Auto Enter replaces that suffix for the scan.
 - **Torch:** Turn on the camera light on devices that support it.
 - **Resize:** Drag the handle above the camera preview to change the keyboard height. The preview changes size while the editing controls remain usable.
 

@@ -108,41 +108,111 @@ internal object PreviewDeliveryPolicy {
         maySelect(previewEnabled, candidates, value, nowMillis, selectionToken)
 }
 
-/** Keeps Preview selection and one-per-field Single Scan as separate choices. */
-internal object ScanOptionPolicy {
-    /** Preview is unavailable while Single Scan is active. */
-    fun canEnablePreview(singleScanEnabled: Boolean): Boolean = !singleScanEnabled
+/** The optional automatic action performed after a successful scan. */
+internal enum class AutomaticScanAction { TAB, ENTER }
 
-    /** Single Scan is unavailable while Preview is active. */
-    fun canEnableSingleScan(previewEnabled: Boolean): Boolean = !previewEnabled
+/** Three user-selectable states shared by Auto Tab and Auto Enter. */
+internal enum class AutomaticActionState { OFF, ONCE, CONTINUOUS }
+
+/** Cycles Auto Tab and Auto Enter while enforcing mutual exclusion and Preview compatibility. */
+internal class AutomaticActionController {
+    private var selectedAction: AutomaticScanAction? = null
+    private var selectedState = AutomaticActionState.OFF
+    private var awaitingFieldChange = false
+
+    /** Returns Off for the action that is not currently selected. */
+    @Synchronized
+    fun state(action: AutomaticScanAction): AutomaticActionState =
+        if (selectedAction == action) selectedState else AutomaticActionState.OFF
+
+    /** Tapping the selected action advances its cycle; choosing the other starts at Once. */
+    @Synchronized
+    fun cycle(action: AutomaticScanAction, previewEnabled: Boolean): AutomaticActionState {
+        if (previewEnabled) return AutomaticActionState.OFF
+        val next = if (selectedAction == action) when (selectedState) {
+            AutomaticActionState.OFF -> AutomaticActionState.ONCE
+            AutomaticActionState.ONCE -> AutomaticActionState.CONTINUOUS
+            AutomaticActionState.CONTINUOUS -> AutomaticActionState.OFF
+        } else AutomaticActionState.ONCE
+        selectedAction = action.takeUnless { next == AutomaticActionState.OFF }
+        selectedState = next
+        awaitingFieldChange = false
+        return next
+    }
+
+    /** Preview suspends automatic actions and clears their selection. */
+    @Synchronized
+    fun onPreviewEnabled() = reset()
+
+    /** Returns the action that replaces a managed suffix, or null while both controls are Off. */
+    @Synchronized
+    fun actionForScan(previewEnabled: Boolean): AutomaticScanAction? =
+        if (previewEnabled || awaitingFieldChange || selectedState == AutomaticActionState.OFF) null else selectedAction
+
+    @Synchronized
+    fun stateForScan(previewEnabled: Boolean): AutomaticActionState =
+        if (previewEnabled || awaitingFieldChange) AutomaticActionState.OFF else selectedState
+
+    /** Once actions always turn off after one successful insertion. */
+    @Synchronized
+    fun completeOnce() {
+        if (selectedState == AutomaticActionState.ONCE) reset()
+    }
+
+    /** Continuous actions pause until a different stable field identity is observed. */
+    @Synchronized
+    fun awaitFieldChange() {
+        if (selectedState == AutomaticActionState.CONTINUOUS) awaitingFieldChange = true
+    }
+
+    @Synchronized
+    fun onFieldChanged() { awaitingFieldChange = false }
+
+    /** An explicit Scan Again tap authorises the deliberate field-local retry. */
+    @Synchronized
+    fun onExplicitRearm() { awaitingFieldChange = false }
+
+    @Synchronized
+    fun isAwaitingFieldChange(): Boolean = awaitingFieldChange
+
+    @Synchronized
+    fun reset() {
+        selectedAction = null
+        selectedState = AutomaticActionState.OFF
+        awaitingFieldChange = false
+    }
 }
 
 /** A field key deliberately contains no field contents. */
 internal data class EditorFieldKey(val connection: Any?, val packageName: String?, val fieldId: Int) {
-    /** Android field IDs are strongest when supplied; connection identity is the fallback for ID 0. */
+    /** A field is reliably identified only by its package and positive Android field ID. */
     fun identifiesSameField(next: EditorFieldKey): Boolean =
-        if (fieldId > 0 && next.fieldId > 0 && !packageName.isNullOrEmpty() && packageName == next.packageName) {
-            fieldId == next.fieldId
-        } else {
-            fieldId == next.fieldId && connection != null && connection === next.connection
-        }
+        fieldId > 0 && next.fieldId > 0 && !packageName.isNullOrEmpty() &&
+            packageName == next.packageName && fieldId == next.fieldId
+
+    /** Returns true only when both keys prove that they refer to different fields. */
+    fun identifiesDifferentReliableField(next: EditorFieldKey): Boolean =
+        fieldId > 0 && next.fieldId > 0 && !packageName.isNullOrEmpty() &&
+            !next.packageName.isNullOrEmpty() && !identifiesSameField(next)
 
     /** Pending Preview choices require the exact connection and editor metadata that produced them. */
     fun isSamePreviewContext(next: EditorFieldKey): Boolean =
         connection != null && connection === next.connection && packageName == next.packageName && fieldId == next.fieldId
 }
 
-/** One accepted insertion per editor identity; input-view recreation does not reset it. */
+/** One accepted insertion per reliably identified editor; connection recreation never rearms it. */
 internal class SingleScanGate {
     private var field: EditorFieldKey? = null
     private var consumed = false
 
+    /** Moves the current key and rearms only when both keys prove a different field. */
     @Synchronized
     fun moveTo(next: EditorFieldKey): Boolean {
-        val sameField = field?.identifiesSameField(next) == true
-        if (!sameField) consumed = false
+        val previous = field
+        val changed = previous?.identifiesDifferentReliableField(next) == true
+        if (changed) consumed = false
         field = next
-        return !sameField
+        return changed
     }
 
     /** Reports whether this field has already received its one scan. */
@@ -161,22 +231,25 @@ internal class SingleScanGate {
         reset()
         return true
     }
+    /** Explicit user action to allow another scan in the current field. */
+    @Synchronized
+    fun rearmExplicitly(): Boolean {
+        if (!consumed) return false
+        consumed = false
+        return true
+    }
+
     /**
-     * Ends an IME input session without dropping a recognisable field's allowance. Keep only the
-     * host package and Android field ID; release the old InputConnection reference. If Android
-     * supplied no stable field ID, the allowance cannot safely cross the session boundary.
+     * Ends an IME input session while preserving the consumed state. Release the old connection;
+     * without a stable field ID, a later session cannot prove that the field changed.
      */
     @Synchronized
     fun finishInput() {
         val previous = field ?: return
-        if (previous.fieldId > 0 && !previous.packageName.isNullOrEmpty()) {
-            field = previous.copy(connection = null)
-        } else {
-            field = null
-            consumed = false
-        }
+        field = previous.copy(connection = null)
     }
 
+    /** Clears the allowance when the IME service itself is destroyed. */
     @Synchronized fun reset() { field = null; consumed = false }
 }
 
@@ -325,9 +398,8 @@ internal object FrameDecodePolicy {
 
 /** Camera-worker-safe gate: it reads only the volatile mode and synchronized insertion allowance. */
 internal object SingleScanDecodePolicy {
-    /** Skips camera work only after the enabled field has accepted a scan. */
-    fun shouldDecode(singleScanEnabled: Boolean, allowanceConsumed: Boolean): Boolean =
-        !singleScanEnabled || !allowanceConsumed
+    /** Skips automatic decode work after the current field has accepted its scan. */
+    fun shouldDecode(allowanceConsumed: Boolean): Boolean = !allowanceConsumed
 }
 
 /** Invalidates camera results captured before a mode or surface transition. */
