@@ -31,8 +31,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled = false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // AGP 9.3+ enables R8 code shrinking/optimisation and resource shrinking together.
+            // Keep this release-only so Debug remains easy to inspect and troubleshoot.
+            optimization {
+                enable = true
+            }
         }
     }
 
@@ -50,6 +53,15 @@ dependencies {
     implementation 'androidx.camera:camera-lifecycle:1.6.2'
     implementation 'androidx.camera:camera-view:1.6.2'
     implementation 'androidx.lifecycle:lifecycle-runtime:2.11.0'
+    // CameraX camera-view 1.6.2 requests AppCompat 1.1.0, which brings Fragment 1.1.0
+    // and Activity 1.0.0. This direct runtime version keeps CameraX's required AppCompat API
+    // while allowing Gradle to select the current compatible AndroidX transitive versions.
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    // CameraX camera-view 1.6.2 also requests Fragment 1.1.0 directly. Keep the
+    // transitive Fragment API current without imposing a global version override.
+    implementation 'androidx.fragment:fragment:1.9.1'
+    // Keep the Activity runtime dependency selected through AppCompat and Fragment current.
+    implementation 'androidx.activity:activity:1.13.0'
     implementation 'com.google.zxing:core:3.5.4'
     implementation 'io.github.zxing-cpp:android:3.1.1'
     // CameraX brings Guava transitively; pin the Android variant past GHSA-xxph-c9ww-hj94.
