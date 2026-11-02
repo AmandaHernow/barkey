@@ -340,6 +340,127 @@ class ExtendedScanStateTest {
         assertTrue(gate.isConsumed())
     }
 
+    @Test fun idlessConnectionKeepsCallbackContextButCannotProveAFieldTransition() {
+        val connection = Any()
+        val current = EditorFieldKey(connection, "example.app", 0, inputType = 1, imeOptions = 2)
+        val gate = SingleScanGate()
+        val controller = AutomaticActionController()
+        val coordinator = ScanDeliveryCoordinator(gate, controller)
+
+        coordinator.observeEditorContext(current)
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(coordinator.recordSuccessfulInsertion())
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertTrue(current.isSameEditorContext(
+            EditorFieldKey(connection, "example.app", 0, inputType = 1, imeOptions = 2),
+        ))
+        assertFalse(current.isSameEditorContext(
+            EditorFieldKey(Any(), "example.app", 0, inputType = 1, imeOptions = 2),
+        ))
+        assertFalse(coordinator.observeEditorContext(
+            EditorFieldKey(connection, "example.app", 0, inputType = 1, imeOptions = 2),
+        ))
+        assertFalse(coordinator.observeEditorContext(
+            EditorFieldKey(Any(), "example.app", 0, inputType = 1, imeOptions = 2),
+        ))
+        assertTrue(gate.isConsumed())
+    }
+
+    @Test fun unknownEditorMetadataDoesNotEraseLastReliableIdentity() {
+        val gate = SingleScanGate()
+        gate.moveTo(EditorFieldKey(Any(), "example.app", 71))
+        assertTrue(gate.consume())
+
+        gate.moveTo(EditorFieldKey(Any(), "example.app", 0))
+        assertTrue(gate.isConsumed())
+        assertTrue(gate.moveTo(EditorFieldKey(Any(), "example.app", 72)))
+        assertFalse(gate.isConsumed())
+    }
+
+    @Test fun previewCanRecordSeveralManualScansButNormalAndFocusStayBlocked() {
+        val connection = Any()
+        val field = EditorFieldKey(connection, "example.app", 0)
+        val candidates = PreviewCandidateState()
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        coordinator.observeEditorContext(field)
+        val token = candidates.selectionToken()
+        candidates.update(listOf("first", "second"), 10)
+
+        assertTrue(coordinator.maySelectPreview(true, candidates, "first", 10, field, field, token))
+        assertTrue(coordinator.recordSuccessfulInsertion())
+        assertTrue(coordinator.maySelectPreview(true, candidates, "second", 10, field, field, token))
+        assertFalse(coordinator.recordSuccessfulInsertion()) // Still recorded as used; only Preview bypasses the gate.
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false)) // Focus uses the same field allowance.
+        assertTrue(coordinator.rearmExplicitly(field))
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun verifiedUndoReconcilesGateAndContinuousWaitOnlyWhenFieldIsEmpty() {
+        val gate = SingleScanGate()
+        val actions = AutomaticActionController()
+        val coordinator = ScanDeliveryCoordinator(gate, actions)
+        val field = EditorFieldKey(Any(), "example.app", 81)
+        coordinator.observeEditorContext(field)
+        assertTrue(coordinator.recordSuccessfulInsertion())
+        actions.cycle(AutomaticScanAction.TAB, false, "example.app")
+        actions.cycle(AutomaticScanAction.TAB, false, "example.app")
+        actions.awaitFieldChange()
+
+        assertFalse(coordinator.rearmAfterVerifiedUndo(fieldIsEmpty = false))
+        assertTrue(gate.isConsumed())
+        assertTrue(actions.isAwaitingFieldChange())
+        assertTrue(coordinator.rearmAfterVerifiedUndo(fieldIsEmpty = true))
+        assertFalse(gate.isConsumed())
+        assertFalse(actions.isAwaitingFieldChange())
+        assertEquals(AutomaticActionState.CONTINUOUS, actions.state(AutomaticScanAction.TAB))
+    }
+
+    @Test fun continuousWorkflowSurvivesInputFinishOnlyUntilSameAppFieldIsVerified() {
+        val gate = SingleScanGate()
+        val actions = AutomaticActionController()
+        val coordinator = ScanDeliveryCoordinator(gate, actions)
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 91))
+        coordinator.recordSuccessfulInsertion()
+        actions.cycle(AutomaticScanAction.ENTER, false, "example.app")
+        actions.cycle(AutomaticScanAction.ENTER, false, "example.app")
+        actions.awaitFieldChange()
+
+        coordinator.onInputSessionFinished()
+        assertEquals(AutomaticActionState.CONTINUOUS, actions.state(AutomaticScanAction.ENTER))
+        assertTrue(actions.isAwaitingFieldChange())
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 92))
+        assertFalse(actions.isAwaitingFieldChange())
+        assertFalse(gate.isConsumed())
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        actions.awaitFieldChange()
+        coordinator.onInputSessionFinished()
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "other.app", 93))
+        assertEquals(AutomaticActionState.OFF, actions.state(AutomaticScanAction.ENTER))
+    }
+
+    @Test fun continuousWorkflowSurvivesInputFinishAfterFieldTransitionWasAlreadyObserved() {
+        val gate = SingleScanGate()
+        val actions = AutomaticActionController()
+        val coordinator = ScanDeliveryCoordinator(gate, actions)
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 101))
+        coordinator.recordSuccessfulInsertion()
+        actions.cycle(AutomaticScanAction.TAB, false, "example.app")
+        actions.cycle(AutomaticScanAction.TAB, false, "example.app")
+        actions.awaitFieldChange()
+
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 102))
+        assertFalse(actions.isAwaitingFieldChange())
+        coordinator.onInputSessionFinished()
+
+        assertEquals(AutomaticActionState.CONTINUOUS, actions.state(AutomaticScanAction.TAB))
+        assertFalse(gate.isConsumed())
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
     @Test fun singleScanInputSessionRestartKeepsStableFieldAllowanceAndReleasesConnectionReference() {
         val gate = SingleScanGate()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 31))

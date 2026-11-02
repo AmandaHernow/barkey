@@ -119,6 +119,8 @@ internal class AutomaticActionController {
     private var selectedAction: AutomaticScanAction? = null
     private var selectedState = AutomaticActionState.OFF
     private var awaitingFieldChange = false
+    /** Package that began this Auto workflow; prevents it crossing into another app. */
+    private var workflowPackageName: String? = null
 
     /** Returns Off for the action that is not currently selected. */
     @Synchronized
@@ -127,9 +129,14 @@ internal class AutomaticActionController {
 
     /** Tapping the selected action advances its cycle; choosing the other starts at Once. */
     @Synchronized
-    fun cycle(action: AutomaticScanAction, previewEnabled: Boolean): AutomaticActionState {
+    fun cycle(
+        action: AutomaticScanAction,
+        previewEnabled: Boolean,
+        editorPackageName: String? = null,
+    ): AutomaticActionState {
         if (previewEnabled) return AutomaticActionState.OFF
-        val next = if (selectedAction == action) when (selectedState) {
+        val continuingSelection = selectedAction == action
+        val next = if (continuingSelection) when (selectedState) {
             AutomaticActionState.OFF -> AutomaticActionState.ONCE
             AutomaticActionState.ONCE -> AutomaticActionState.CONTINUOUS
             AutomaticActionState.CONTINUOUS -> AutomaticActionState.OFF
@@ -137,6 +144,11 @@ internal class AutomaticActionController {
         selectedAction = action.takeUnless { next == AutomaticActionState.OFF }
         selectedState = next
         awaitingFieldChange = false
+        if (next == AutomaticActionState.OFF) {
+            workflowPackageName = null
+        } else if (!continuingSelection) {
+            workflowPackageName = editorPackageName?.takeIf(String::isNotBlank)
+        }
         return next
     }
 
@@ -165,12 +177,50 @@ internal class AutomaticActionController {
         if (selectedState == AutomaticActionState.CONTINUOUS) awaitingFieldChange = true
     }
 
+    /** Keeps ∞ through editor-session boundaries; window hiding and app identity end the workflow. */
     @Synchronized
-    fun onFieldChanged() { awaitingFieldChange = false }
+    fun onInputSessionFinished() {
+        if (selectedState != AutomaticActionState.CONTINUOUS) reset()
+    }
+
+    /** App changes terminate an automatic workflow even when Android supplies no field ID. */
+    @Synchronized
+    fun observeEditorPackage(editorPackageName: String?) {
+        val workflowPackage = workflowPackageName
+        if (selectedAction != null && workflowPackage != null && editorPackageName != null &&
+            workflowPackage != editorPackageName
+        ) reset()
+    }
+
+    /** Resumes ∞ only after a reliable field transition in the app where the workflow began. */
+    @Synchronized
+    fun onVerifiedFieldChanged(editorPackageName: String?): Boolean {
+        observeEditorPackage(editorPackageName)
+        if (selectedAction == null || workflowPackageName == null ||
+            workflowPackageName != editorPackageName
+        ) {
+            reset()
+            return false
+        }
+        awaitingFieldChange = false
+        return true
+    }
+
+    /** A verified Undo permits a fresh scan while retaining the selected continuous mode. */
+    @Synchronized
+    fun onVerifiedUndo() { awaitingFieldChange = false }
 
     /** An explicit Scan Again tap authorises the deliberate field-local retry. */
     @Synchronized
-    fun onExplicitRearm() { awaitingFieldChange = false }
+    fun onExplicitRearm(editorPackageName: String?) {
+        observeEditorPackage(editorPackageName)
+        if (selectedAction == null) return
+        if (workflowPackageName == null || workflowPackageName != editorPackageName) {
+            reset()
+            return
+        }
+        awaitingFieldChange = false
+    }
 
     @Synchronized
     fun isAwaitingFieldChange(): Boolean = awaitingFieldChange
@@ -180,38 +230,57 @@ internal class AutomaticActionController {
         selectedAction = null
         selectedState = AutomaticActionState.OFF
         awaitingFieldChange = false
+        workflowPackageName = null
     }
 }
 
-/** A field key deliberately contains no field contents. */
-internal data class EditorFieldKey(val connection: Any?, val packageName: String?, val fieldId: Int) {
+/** A field key deliberately contains no field contents; editor metadata is for identity only. */
+internal data class EditorFieldKey(
+    val connection: Any?,
+    val packageName: String?,
+    val fieldId: Int,
+    val inputType: Int = 0,
+    val imeOptions: Int = 0,
+) {
+    /** Same live editor context keeps callbacks valid, including editors with field ID zero. */
+    fun isSameEditorContext(next: EditorFieldKey): Boolean =
+        connection != null && connection === next.connection && packageName == next.packageName &&
+            fieldId == next.fieldId && inputType == next.inputType && imeOptions == next.imeOptions
+
     /** A field is reliably identified only by its package and positive Android field ID. */
-    fun identifiesSameField(next: EditorFieldKey): Boolean =
+    fun isSameReliableField(next: EditorFieldKey): Boolean =
         fieldId > 0 && next.fieldId > 0 && !packageName.isNullOrEmpty() &&
             packageName == next.packageName && fieldId == next.fieldId
 
     /** Returns true only when both keys prove that they refer to different fields. */
     fun identifiesDifferentReliableField(next: EditorFieldKey): Boolean =
         fieldId > 0 && next.fieldId > 0 && !packageName.isNullOrEmpty() &&
-            !next.packageName.isNullOrEmpty() && !identifiesSameField(next)
+            !next.packageName.isNullOrEmpty() && !isSameReliableField(next)
 
     /** Pending Preview choices require the exact connection and editor metadata that produced them. */
     fun isSamePreviewContext(next: EditorFieldKey): Boolean =
-        connection != null && connection === next.connection && packageName == next.packageName && fieldId == next.fieldId
+        isSameEditorContext(next)
+
+    /** A package and positive field ID are required before another field can be inferred. */
+    val hasReliableFieldIdentity: Boolean
+        get() = fieldId > 0 && !packageName.isNullOrEmpty()
 }
 
-/** One accepted insertion per reliably identified editor; connection recreation never rearms it. */
+/** One accepted insertion per current editor; only a verified ID change or explicit action rearms. */
 internal class SingleScanGate {
-    private var field: EditorFieldKey? = null
+    /** Keep the last reliable ID when Android temporarily supplies incomplete editor metadata. */
+    private var lastReliableField: EditorFieldKey? = null
+    private var hasCurrentEditor = false
     private var consumed = false
 
     /** Moves the current key and rearms only when both keys prove a different field. */
     @Synchronized
     fun moveTo(next: EditorFieldKey): Boolean {
-        val previous = field
+        val previous = lastReliableField
         val changed = previous?.identifiesDifferentReliableField(next) == true
         if (changed) consumed = false
-        field = next
+        if (next.hasReliableFieldIdentity) lastReliableField = next
+        hasCurrentEditor = true
         return changed
     }
 
@@ -220,7 +289,7 @@ internal class SingleScanGate {
 
     /** Uses the field's allowance after a successful insertion. */
     @Synchronized fun consume(): Boolean {
-        if (field == null || consumed) return false
+        if (!hasCurrentEditor || consumed) return false
         consumed = true
         return true
     }
@@ -228,7 +297,7 @@ internal class SingleScanGate {
     /** Makes the field available again when Undo leaves it empty. */
     @Synchronized fun rearmAfterUndo(fieldIsEmpty: Boolean): Boolean {
         if (!consumed || !fieldIsEmpty) return false
-        reset()
+        consumed = false
         return true
     }
     /** Explicit user action to allow another scan in the current field. */
@@ -245,12 +314,86 @@ internal class SingleScanGate {
      */
     @Synchronized
     fun finishInput() {
-        val previous = field ?: return
-        field = previous.copy(connection = null)
+        // Retain the last positive field ID but require a fresh editor key after this boundary.
+        hasCurrentEditor = false
     }
 
     /** Clears the allowance when the IME service itself is destroyed. */
-    @Synchronized fun reset() { field = null; consumed = false }
+    @Synchronized fun reset() {
+        lastReliableField = null
+        hasCurrentEditor = false
+        consumed = false
+    }
+}
+
+/** Coordinates preview delivery, field protection and post-scan readiness as one tested policy. */
+internal class ScanDeliveryCoordinator(
+    private val singleScanGate: SingleScanGate,
+    private val automaticActions: AutomaticActionController,
+) {
+    /** Records context and resumes ∞ only after a stable, same-workflow field transition. */
+    fun observeEditorContext(next: EditorFieldKey): Boolean {
+        automaticActions.observeEditorPackage(next.packageName)
+        val fieldChanged = singleScanGate.moveTo(next)
+        if (fieldChanged) automaticActions.onVerifiedFieldChanged(next.packageName)
+        return fieldChanged
+    }
+
+    /** Normal automatic insertion requires Preview Off, an available field and no pending transition. */
+    fun mayDeliverAutomatically(previewEnabled: Boolean): Boolean =
+        PreviewDeliveryPolicy.mayInsertAutomatically(previewEnabled) &&
+            !singleScanGate.isConsumed() && !automaticActions.isAwaitingFieldChange()
+
+    /** Manual Preview taps remain available even after an earlier candidate consumed the field. */
+    fun maySelectPreview(
+        previewEnabled: Boolean,
+        candidates: PreviewCandidateState,
+        value: String,
+        nowMillis: Long,
+        producedFor: EditorFieldKey,
+        current: EditorFieldKey?,
+        selectionToken: Long,
+    ): Boolean = PreviewDeliveryPolicy.maySelectFromContext(
+        previewEnabled, candidates, value, nowMillis, producedFor, current, selectionToken,
+    )
+
+    /** A successful automatic or manual Preview insertion consumes the normal field allowance. */
+    fun recordSuccessfulInsertion(): Boolean = singleScanGate.consume()
+
+    /** Rearms both linked states only after Undo verification says that the field is empty. */
+    fun rearmAfterVerifiedUndo(fieldIsEmpty: Boolean): Boolean {
+        if (!singleScanGate.rearmAfterUndo(fieldIsEmpty)) return false
+        automaticActions.onVerifiedUndo()
+        return true
+    }
+
+    /** Scan Again requires a live key and a deliberate call from the status action. */
+    fun rearmExplicitly(currentField: EditorFieldKey?): Boolean {
+        currentField ?: return false
+        if (!singleScanGate.rearmExplicitly()) return false
+        automaticActions.observeEditorPackage(currentField.packageName)
+        singleScanGate.moveTo(currentField)
+        automaticActions.onExplicitRearm(currentField.packageName)
+        return true
+    }
+
+    /** Input finishing may precede or follow navigation; preserve ∞ until a real workflow boundary. */
+    fun onInputSessionFinished() {
+        singleScanGate.finishInput()
+        automaticActions.onInputSessionFinished()
+    }
+
+    /** Hiding the IME ends its visible scanning workflow. */
+    fun onKeyboardHidden() {
+        // Keep the consumed field allowance: reopening BarKey must not scan again into that field.
+        automaticActions.reset()
+    }
+
+    /** Destruction releases both per-service delivery and automatic-workflow state. */
+    fun reset() {
+        automaticActions.reset()
+        singleScanGate.reset()
+    }
 }
 
 /** Geometry helpers for the movable and resizable Focus region and its production camera crop mapping. */

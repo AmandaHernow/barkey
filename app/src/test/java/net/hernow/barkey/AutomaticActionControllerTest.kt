@@ -20,8 +20,8 @@ class AutomaticActionControllerTest {
 
     @Test fun selectingOtherActionTurnsFirstOffAndStartsOtherAtOnce() {
         val controller = AutomaticActionController()
-        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false)
-        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false)
+        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false, editorPackageName = "example.app")
+        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false, editorPackageName = "example.app")
         assertEquals(AutomaticActionState.CONTINUOUS, controller.state(AutomaticScanAction.TAB))
 
         assertEquals(AutomaticActionState.ONCE, controller.cycle(AutomaticScanAction.ENTER, previewEnabled = false))
@@ -48,13 +48,13 @@ class AutomaticActionControllerTest {
         assertNull(controller.actionForScan(previewEnabled = false))
         assertEquals(AutomaticActionState.OFF, controller.state(AutomaticScanAction.TAB))
 
-        controller.cycle(AutomaticScanAction.ENTER, previewEnabled = false)
-        controller.cycle(AutomaticScanAction.ENTER, previewEnabled = false)
+        controller.cycle(AutomaticScanAction.ENTER, previewEnabled = false, editorPackageName = "example.app")
+        controller.cycle(AutomaticScanAction.ENTER, previewEnabled = false, editorPackageName = "example.app")
         controller.awaitFieldChange()
         assertTrue(controller.isAwaitingFieldChange())
         assertNull(controller.actionForScan(previewEnabled = false))
         assertEquals(AutomaticActionState.OFF, controller.stateForScan(previewEnabled = false))
-        controller.onFieldChanged()
+        assertTrue(controller.onVerifiedFieldChanged("example.app"))
         assertFalse(controller.isAwaitingFieldChange())
         assertEquals(AutomaticScanAction.ENTER, controller.actionForScan(previewEnabled = false))
     }
@@ -64,8 +64,8 @@ class AutomaticActionControllerTest {
         val gate = SingleScanGate()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 41))
         assertTrue(gate.consume())
-        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false)
-        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false)
+        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false, editorPackageName = "example.app")
+        controller.cycle(AutomaticScanAction.TAB, previewEnabled = false, editorPackageName = "example.app")
         controller.awaitFieldChange()
 
         assertFalse(gate.moveTo(EditorFieldKey(Any(), "example.app", 41)))
@@ -73,7 +73,7 @@ class AutomaticActionControllerTest {
         assertTrue(gate.isConsumed())
 
         assertTrue(gate.moveTo(EditorFieldKey(Any(), "example.app", 42)))
-        controller.onFieldChanged()
+        assertTrue(controller.onVerifiedFieldChanged("example.app"))
         assertFalse(gate.isConsumed())
         assertEquals(AutomaticScanAction.TAB, controller.actionForScan(previewEnabled = false))
     }

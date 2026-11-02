@@ -24,12 +24,12 @@ BarKey is free for private, personal use. Company and workplace use require my p
 <table>
   <tr>
     <th>Setup guide</th>
-    <th>Focus with Auto Tab</th>
+    <th>Focus scan area (earlier layout)</th>
     <th>Preview suggestions</th>
   </tr>
   <tr>
     <td><img src="artwork/first-run.jpg" alt="BarKey setup guide showing keyboard setup and camera permission" width="220"></td>
-    <td><img src="artwork/focus.jpg" alt="BarKey camera preview with the Focus scan area enabled" width="220"></td>
+    <td><img src="artwork/focus.jpg" alt="Earlier BarKey camera preview showing Focus and the former Single Scan control" width="220"></td>
     <td><img src="artwork/preview.jpg" alt="BarKey camera preview with selectable barcode suggestions" width="220"></td>
   </tr>
 </table>
@@ -46,7 +46,7 @@ Android controls which keyboards are enabled and selected. BarKey does not chang
 ## Using the scanner
 
 - **Fast / Accurate:** Choose the mode that suits the code. Accurate mode searches more thoroughly and may be slower.
-- **Preview:** Pause automatic insertion and tap a detected suggestion to insert it. Suggestions are temporary and are not scan history. Selecting candidates never performs Auto Tab or Auto Enter; you can deliberately select multiple suggestions.
+- **Preview:** Pause automatic insertion and tap a detected suggestion to insert it. Suggestions are temporary and are not scan history. Selecting candidates never performs Auto Tab or Auto Enter; you can deliberately select multiple suggestions. A successful Preview selection also protects the field from a later automatic scan until it changes, you tap Scan Again or verified Undo rearms it. An administrator-managed `scan_suffix`, if configured, still follows each successful Preview selection.
 - **Focus:** Drag the outlined area over the code. Drag its corner handle to resize it, or long-press Focus to reset it. Keep the whole code and a little clear space inside the outline. Tapping the preview requests autofocus; it does not move the scan area.
 - **Auto Tab / Auto Enter:** Each button cycles through Off, ×1 and ∞. ×1 inserts one value, requests Tab or performs Enter, then turns Off. ∞ pauses after every action until a different field is reliably identified. Tab only uses the editor's advertised Next action; BarKey does not send Enter when Tab is unsupported. Enter behaviour depends on the host editor and may submit a form.
 - **One scan per field:** This protection is always active for automatic scanning. If an app does not expose a stable field ID, tap the status message to Scan Again. Undo rearms only after a safe deletion is verified and the field is empty. With both automatic actions Off, the managed `scan_suffix` setting retains its existing behaviour; an active Auto Tab or Auto Enter replaces that suffix for the scan.

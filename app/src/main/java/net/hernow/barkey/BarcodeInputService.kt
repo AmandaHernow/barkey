@@ -93,6 +93,7 @@ class BarcodeInputService : InputMethodService() {
     private val previewCandidateButtons = linkedMapOf<String, Button>()
     private val singleScanGate = SingleScanGate()
     private val automaticActions = AutomaticActionController()
+    private val scanDelivery = ScanDeliveryCoordinator(singleScanGate, automaticActions)
     private var activeEditorField: EditorFieldKey? = null
     private val settingsCallbackGeneration = CallbackGeneration()
     private val focusRegionState = FocusRegionState(settingsCallbackGeneration, previewCandidateState)
@@ -1084,8 +1085,8 @@ class BarcodeInputService : InputMethodService() {
         stopBackspaceRepeat()
         resetHelpPanelForHiddenWindow()
         inputEditor.clearUndo()
-        automaticActions.reset()
-        renderExtendedControls()
+        // Android may finish the view while handing focus to another editor. Keep Auto state until
+        // a verified package/field transition or the actual window-hidden workflow boundary.
         clearPreviewCandidates()
         refreshUndoButton()
         stopCamera()
@@ -1098,11 +1099,10 @@ class BarcodeInputService : InputMethodService() {
         stopCamera()
         clearPendingResults()
         inputEditor.clearUndo()
-        automaticActions.reset()
         sessionGate.endSession()
-        // Preserve the consumed allowance through an editor handoff while dropping the old
-        // InputConnection. Only a stable, different field ID can rearm it in the next session.
-        singleScanGate.finishInput()
+        // Android can finish this session before or after starting the destination editor. Keep ∞
+        // across the boundary; the field gate and package check decide whether it can resume.
+        scanDelivery.onInputSessionFinished()
         activeEditorField = null
         currentSessionId = 0L
         super.onFinishInput()
@@ -1114,6 +1114,10 @@ class BarcodeInputService : InputMethodService() {
         resetHelpPanelForHiddenWindow()
         inputEditor.clearUndo()
         clearPreviewCandidates()
+        // A hidden keyboard ends its user-visible scanning workflow, so don't resume automation
+        // silently if BarKey is opened later in another application.
+        scanDelivery.onKeyboardHidden()
+        renderExtendedControls()
         refreshUndoButton()
         stopCamera()
         super.onWindowHidden()
@@ -1153,7 +1157,7 @@ class BarcodeInputService : InputMethodService() {
         clearPendingResults()
         inputEditor.clearUndo()
         sessionGate.endSession()
-        singleScanGate.reset()
+        scanDelivery.reset()
         permissionResultReceiver?.let { unregisterReceiver(it) }
         permissionResultReceiver = null
         analyzerExecutor.shutdownNow()
@@ -1441,8 +1445,13 @@ class BarcodeInputService : InputMethodService() {
 
     /** Advances one automatic-action control and invalidates already queued camera results. */
     private fun cycleAutomaticAction(action: AutomaticScanAction) {
+        syncActiveEditorField()
         if (previewEnabled) return
-        automaticActions.cycle(action, previewEnabled = false)
+        automaticActions.cycle(
+            action,
+            previewEnabled = false,
+            editorPackageName = currentFieldKey()?.packageName,
+        )
         invalidateScanCallbacks()
         clearPreviewCandidates()
         showScanOptionStatus()
@@ -1451,9 +1460,11 @@ class BarcodeInputService : InputMethodService() {
 
     /** Rearms the current field only after a deliberate accessibility action. */
     private fun scanAgain() {
-        if (!singleScanGate.rearmExplicitly()) return
-        automaticActions.onExplicitRearm()
-        currentFieldKey()?.let(singleScanGate::moveTo)
+        val currentField = currentFieldKey() ?: return
+        // Clear results queued before the explicit rearm so only a fresh frame may be delivered.
+        invalidateScanCallbacks()
+        clearPreviewCandidates()
+        if (!scanDelivery.rearmExplicitly(currentField)) return
         setStatus(R.string.scan_again_rearmed)
         renderExtendedControls()
     }
@@ -1681,23 +1692,27 @@ class BarcodeInputService : InputMethodService() {
     private fun currentFieldKey(): EditorFieldKey? {
         val connection = currentInputConnection ?: return null
         val info = currentInputEditorInfo
-        return EditorFieldKey(connection, info?.packageName, info?.fieldId ?: 0)
+        return EditorFieldKey(
+            connection = connection,
+            packageName = info?.packageName,
+            fieldId = info?.fieldId ?: 0,
+            inputType = info?.inputType ?: 0,
+            imeOptions = info?.imeOptions ?: 0,
+        )
     }
 
     /** Clears pending results when Android reports a different editor context. */
     private fun syncActiveEditorField() {
         val next = currentFieldKey() ?: return
         val previous = activeEditorField
-        val changed = previous?.identifiesSameField(next) != true
-        val previewContextChanged = previous?.isSamePreviewContext(next) != true
+        val changed = previous?.isSameEditorContext(next) != true
         activeEditorField = next
-        if (changed || previewContextChanged) {
+        if (changed) {
             invalidateScanCallbacks()
             clearPreviewCandidates()
         }
         val wasConsumed = singleScanGate.isConsumed()
-        val stableFieldChanged = singleScanGate.moveTo(next)
-        if (stableFieldChanged) automaticActions.onFieldChanged()
+        scanDelivery.observeEditorContext(next)
         if (wasConsumed && !singleScanGate.isConsumed()) {
             showScanOptionStatus()
             renderExtendedControls()
@@ -2007,20 +2022,19 @@ class BarcodeInputService : InputMethodService() {
             ) return@resultCallback
             syncActiveEditorField()
             if (settingsGeneration != extendedGeneration) return@resultCallback
-            if (!PreviewDeliveryPolicy.mayInsertAutomatically(previewEnabled)) {
+            if (previewEnabled) {
                 val current = previewCandidateState.update(values, SystemClock.elapsedRealtime())
                 showPreviewCandidates(current, sessionId, cameraGeneration, modeGeneration, settingsGeneration)
                 return@resultCallback
             }
             val value = values.firstOrNull() ?: return@resultCallback
-            currentFieldKey()?.let(singleScanGate::moveTo)
-            if (automaticActions.isAwaitingFieldChange()) {
-                setStatus(R.string.auto_action_waiting_for_field)
-                return@resultCallback
-            }
-            if (singleScanGate.isConsumed()) {
-                setStatus(if (focusEnabled) R.string.focus_scan_field_used else R.string.scan_field_used)
-                renderExtendedControls()
+            if (!scanDelivery.mayDeliverAutomatically(previewEnabled = false)) {
+                if (automaticActions.isAwaitingFieldChange()) {
+                    setStatus(R.string.auto_action_waiting_for_field)
+                } else {
+                    setStatus(if (focusEnabled) R.string.focus_scan_field_used else R.string.scan_field_used)
+                    renderExtendedControls()
+                }
                 return@resultCallback
             }
             insertDecodedValue(value, sessionId, cameraGeneration, modeGeneration, settingsGeneration)
@@ -2046,7 +2060,7 @@ class BarcodeInputService : InputMethodService() {
             return
         }
         singleScanGate.moveTo(fieldKey)
-        if (!isPreviewSelection && (automaticActions.isAwaitingFieldChange() || singleScanGate.isConsumed())) {
+        if (!isPreviewSelection && !scanDelivery.mayDeliverAutomatically(previewEnabled)) {
             if (automaticActions.isAwaitingFieldChange()) {
                 setStatus(R.string.auto_action_waiting_for_field)
             } else {
@@ -2073,7 +2087,9 @@ class BarcodeInputService : InputMethodService() {
             setStatus(R.string.scan_delivery_failed)
             return
         }
-        if (!isPreviewSelection) singleScanGate.consume()
+        // Manual Preview insertions also consume the normal allowance; the Preview path alone
+        // bypasses the blocked-field check so deliberate additional candidate taps remain valid.
+        scanDelivery.recordSuccessfulInsertion()
         refreshUndoButton()
         val postAction = ScanPostActionPolicy.resolve(
             automaticAction = automaticActions.actionForScan(previewEnabled),
@@ -2086,10 +2102,15 @@ class BarcodeInputService : InputMethodService() {
                 automaticActions.stateForScan(previewEnabled),
                 inputConnection,
                 fieldKey,
+                sessionId,
             )
-            is ScanPostAction.ManagedSuffix -> postAction.suffix.keyCode?.let { keyCode ->
-                inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
-                inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
+            is ScanPostAction.ManagedSuffix -> {
+                if (isCurrentScanContext(sessionId, inputConnection, fieldKey)) {
+                    postAction.suffix.keyCode?.let { keyCode ->
+                        inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
+                        inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
+                    }
+                } else setStatus(R.string.auto_action_context_changed)
             }
             ScanPostAction.None -> Unit
         }
@@ -2105,8 +2126,17 @@ class BarcodeInputService : InputMethodService() {
         state: AutomaticActionState,
         inputConnection: InputConnection,
         scannedField: EditorFieldKey,
+        sessionId: Long,
     ) {
         if (state == AutomaticActionState.CONTINUOUS) automaticActions.awaitFieldChange()
+        if (!isCurrentScanContext(sessionId, inputConnection, scannedField)) {
+            // A host can replace its connection between insertion and the post-scan command.
+            // Never send navigation to the old target; keep continuous mode paused for safety.
+            if (state == AutomaticActionState.ONCE) automaticActions.completeOnce()
+            setStatus(R.string.auto_action_context_changed)
+            renderExtendedControls()
+            return
+        }
         val editorConnection = AndroidEditorConnection(inputConnection)
         val succeeded = when (action) {
             AutomaticScanAction.TAB -> inputEditor.nextField(editorConnection, currentInputEditorInfo)
@@ -2114,21 +2144,33 @@ class BarcodeInputService : InputMethodService() {
         }
         if (state == AutomaticActionState.ONCE) automaticActions.completeOnce()
 
+        // An action callback may synchronously start another editor. Let the normal identity
+        // policy validate that transition before deciding whether continuous scanning can resume.
+        syncActiveEditorField()
+
         when {
             !succeeded && action == AutomaticScanAction.TAB -> setStatus(R.string.auto_tab_navigation_failed)
             !succeeded && action == AutomaticScanAction.ENTER -> setStatus(R.string.auto_enter_action_failed)
             state == AutomaticActionState.ONCE -> setStatus(R.string.auto_action_once_complete)
             else -> {
                 // An accepted command is not proof that the host changed or reset its field.
-                if (currentFieldKey()?.identifiesDifferentReliableField(scannedField) != true) {
-                    setStatus(R.string.auto_action_waiting_for_field)
-                } else {
-                    automaticActions.onFieldChanged()
-                    setStatus(R.string.auto_action_waiting_for_field)
-                }
+                val ready = !automaticActions.isAwaitingFieldChange() && !singleScanGate.isConsumed()
+                setStatus(if (ready) R.string.auto_action_ready_for_field else R.string.auto_action_waiting_for_field)
             }
         }
         renderExtendedControls()
+    }
+
+    /** Verifies the live IME session and exact connection before a post-scan command is sent. */
+    private fun isCurrentScanContext(
+        sessionId: Long,
+        inputConnection: InputConnection,
+        scannedField: EditorFieldKey,
+    ): Boolean {
+        if (sessionId == 0L || sessionId != currentSessionId || !sessionGate.isCurrent(sessionId) ||
+            currentInputConnection !== inputConnection
+        ) return false
+        return currentFieldKey()?.isSameEditorContext(scannedField) == true
     }
 
     /** Shows current values as selectable buttons without inserting them automatically. */
@@ -2160,7 +2202,7 @@ class BarcodeInputService : InputMethodService() {
                 isAllCaps = false
                 setOnClickListener {
                     syncActiveEditorField()
-                    if (!PreviewDeliveryPolicy.maySelectFromContext(
+                    if (!scanDelivery.maySelectPreview(
                             previewEnabled, previewCandidateState, value, SystemClock.elapsedRealtime(),
                             editorContext, currentFieldKey(), selectionToken,
                         )
@@ -2188,7 +2230,9 @@ class BarcodeInputService : InputMethodService() {
     private fun setStatus(messageId: Int) {
         statusView?.apply {
             setText(messageId)
-            val scanAgainAvailable = singleScanGate.isConsumed()
+            // Keep the status action contextual: permission, camera and editing errors must not
+            // accidentally expose a control that bypasses the per-field scan guard.
+            val scanAgainAvailable = singleScanGate.isConsumed() && messageId in SCAN_AGAIN_STATUS_IDS
             isClickable = scanAgainAvailable
             isFocusable = scanAgainAvailable
             contentDescription = getString(
@@ -2386,15 +2430,28 @@ class BarcodeInputService : InputMethodService() {
 
     /** Attempts the latest insertion only when its editor context still matches. */
     private fun undoScan() {
+        val connection = currentInputConnection ?: run {
+            setStatus(R.string.scan_undo_unavailable)
+            return
+        }
+        val sessionId = currentSessionId
+        val scannedField = currentFieldKey() ?: run {
+            setStatus(R.string.scan_undo_unavailable)
+            return
+        }
         val undone = try {
-            currentInputConnection?.let { inputEditor.undo(AndroidEditorConnection(it), currentSessionId) } ?: false
+            inputEditor.undo(AndroidEditorConnection(connection), sessionId)
         } catch (error: RuntimeException) {
             Log.w(TAG, "Scanner undo was rejected (${error.javaClass.simpleName})")
             false
         }
         if (undone) {
-            val editor = currentInputConnection?.let(::AndroidEditorConnection)
-            if (singleScanGate.rearmAfterUndo(inputEditor.isFieldEmpty(editor))) {
+            val sameContext = isCurrentScanContext(sessionId, connection, scannedField)
+            val fieldIsEmpty = sameContext && inputEditor.isFieldEmpty(AndroidEditorConnection(connection))
+            if (scanDelivery.rearmAfterVerifiedUndo(fieldIsEmpty)) {
+                // Discard camera results queued before Undo; a fresh frame is required to refill.
+                invalidateScanCallbacks()
+                clearPreviewCandidates()
                 renderExtendedControls()
             }
             setStatus(R.string.scan_undo_complete)
@@ -2471,5 +2528,15 @@ class BarcodeInputService : InputMethodService() {
         const val TAG = "BarcodeInputService"
         const val DEFAULT_FOCUS_REGION_FRACTION = 0.8f
         const val FOCUS_MAPPING_LOG_INTERVAL_MS = 2_000L
+        val SCAN_AGAIN_STATUS_IDS = setOf(
+            R.string.scan_field_used,
+            R.string.focus_scan_field_used,
+            R.string.auto_action_waiting_for_field,
+            R.string.auto_tab_navigation_failed,
+            R.string.auto_enter_action_failed,
+            R.string.auto_action_once_complete,
+            R.string.auto_action_context_changed,
+            R.string.scan_undo_complete,
+        )
     }
 }
