@@ -177,19 +177,19 @@ internal class AutomaticActionController {
         if (selectedState == AutomaticActionState.CONTINUOUS) awaitingFieldChange = true
     }
 
-    /** Keeps ∞ through editor-session boundaries; window hiding and app identity end the workflow. */
+    /** Keeps an armed action across same-app editor sessions when its originating app is known. */
     @Synchronized
     fun onInputSessionFinished() {
-        if (selectedState != AutomaticActionState.CONTINUOUS) reset()
+        // Android ends one editor session while moving to another. Keep Once and Continuous when
+        // the originating package is known; if it is unknown, there is no safe app boundary check.
+        if (workflowPackageName == null) reset()
     }
 
     /** App changes terminate an automatic workflow even when Android supplies no field ID. */
     @Synchronized
     fun observeEditorPackage(editorPackageName: String?) {
         val workflowPackage = workflowPackageName
-        if (selectedAction != null && workflowPackage != null && editorPackageName != null &&
-            workflowPackage != editorPackageName
-        ) reset()
+        if (selectedAction != null && (workflowPackage == null || workflowPackage != editorPackageName)) reset()
     }
 
     /** Resumes ∞ only after a reliable field transition in the app where the workflow began. */
@@ -270,6 +270,10 @@ internal data class EditorFieldKey(
 internal class SingleScanGate {
     /** Keep the last reliable ID when Android temporarily supplies incomplete editor metadata. */
     private var lastReliableField: EditorFieldKey? = null
+    /** Remember reliable fields already scanned if an editor changes during commitText(). */
+    private val consumedReliableFields = linkedSetOf<ReliableFieldIdentity>()
+    /** Holds only the live current key; release it when Android finishes the editor session. */
+    private var currentField: EditorFieldKey? = null
     private var hasCurrentEditor = false
     private var consumed = false
 
@@ -278,8 +282,9 @@ internal class SingleScanGate {
     fun moveTo(next: EditorFieldKey): Boolean {
         val previous = lastReliableField
         val changed = previous?.identifiesDifferentReliableField(next) == true
-        if (changed) consumed = false
+        if (changed) consumed = reliableIdentity(next) in consumedReliableFields
         if (next.hasReliableFieldIdentity) lastReliableField = next
+        currentField = next
         hasCurrentEditor = true
         return changed
     }
@@ -287,17 +292,45 @@ internal class SingleScanGate {
     /** Reports whether this field has already received its one scan. */
     @Synchronized fun isConsumed(): Boolean = consumed
 
-    /** Uses the field's allowance after a successful insertion. */
+    /** Records insertion against its captured field, never against a synchronous destination. */
     @Synchronized fun consume(): Boolean {
         if (!hasCurrentEditor || consumed) return false
         consumed = true
         return true
     }
 
+    /**
+     * Records the field that received the scan. If Android changed editors inside commitText(),
+     * leave a verified destination's allowance untouched and conservatively block ambiguous ones.
+     * @return true when the current editor was the scanned editor and became consumed.
+     */
+    @Synchronized
+    fun consume(scannedField: EditorFieldKey): Boolean {
+        if (!hasCurrentEditor) {
+            rememberConsumedField(scannedField)
+            consumed = true
+            return false
+        }
+        val activeField = currentField ?: return false
+        if (activeField.isSameEditorContext(scannedField)) return consume()
+
+        // Retain only insertion records whose editor changed during commitText(); ordinary field
+        // navigation continues to use the existing single-current-field gate behaviour.
+        rememberConsumedField(scannedField)
+        if (!scannedField.identifiesDifferentReliableField(activeField)) {
+            // A connection or metadata change alone cannot establish a safe new-field allowance.
+            consumed = true
+            return false
+        }
+        consumed = reliableIdentity(activeField) in consumedReliableFields
+        return false
+    }
+
     /** Makes the field available again when Undo leaves it empty. */
     @Synchronized fun rearmAfterUndo(fieldIsEmpty: Boolean): Boolean {
         if (!consumed || !fieldIsEmpty) return false
         consumed = false
+        currentField?.let(::forgetConsumedField)
         return true
     }
     /** Explicit user action to allow another scan in the current field. */
@@ -305,6 +338,7 @@ internal class SingleScanGate {
     fun rearmExplicitly(): Boolean {
         if (!consumed) return false
         consumed = false
+        currentField?.let(::forgetConsumedField)
         return true
     }
 
@@ -316,14 +350,30 @@ internal class SingleScanGate {
     fun finishInput() {
         // Retain the last positive field ID but require a fresh editor key after this boundary.
         hasCurrentEditor = false
+        currentField = null
     }
 
     /** Clears the allowance when the IME service itself is destroyed. */
     @Synchronized fun reset() {
         lastReliableField = null
+        consumedReliableFields.clear()
+        currentField = null
         hasCurrentEditor = false
         consumed = false
     }
+
+    private fun reliableIdentity(field: EditorFieldKey): ReliableFieldIdentity =
+        ReliableFieldIdentity(requireNotNull(field.packageName), field.fieldId)
+
+    private fun rememberConsumedField(field: EditorFieldKey) {
+        if (field.hasReliableFieldIdentity) consumedReliableFields += reliableIdentity(field)
+    }
+
+    private fun forgetConsumedField(field: EditorFieldKey) {
+        if (field.hasReliableFieldIdentity) consumedReliableFields -= reliableIdentity(field)
+    }
+
+    private data class ReliableFieldIdentity(val packageName: String, val fieldId: Int)
 }
 
 /** Coordinates preview delivery, field protection and post-scan readiness as one tested policy. */
@@ -357,8 +407,12 @@ internal class ScanDeliveryCoordinator(
         previewEnabled, candidates, value, nowMillis, producedFor, current, selectionToken,
     )
 
-    /** A successful automatic or manual Preview insertion consumes the normal field allowance. */
-    fun recordSuccessfulInsertion(): Boolean = singleScanGate.consume()
+    /**
+     * A successful insertion consumes the allowance belonging to its captured editor context.
+     * @return true when the active editor was the scanned editor and became consumed.
+     */
+    fun recordSuccessfulInsertion(scannedField: EditorFieldKey? = null): Boolean =
+        if (scannedField == null) singleScanGate.consume() else singleScanGate.consume(scannedField)
 
     /** Rearms both linked states only after Undo verification says that the field is empty. */
     fun rearmAfterVerifiedUndo(fieldIsEmpty: Boolean): Boolean {

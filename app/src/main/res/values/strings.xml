@@ -103,12 +103,14 @@
     <string name="auto_tab_once">Tab ×1</string>
     <string name="auto_tab_continuous">∞ Tab</string>
     <string name="auto_tab_off_accessibility">Auto Tab Off. Tap to advance to Tab ×1.</string>
+    <string name="auto_tab_preview_disabled_accessibility">Auto Tab is unavailable while Preview is on. Turn Preview off to use Auto Tab.</string>
     <string name="auto_tab_once_accessibility">Auto Tab once is on. One successful scan inserts a value and requests the next field; then Auto Tab turns off.</string>
     <string name="auto_tab_continuous_accessibility">Auto Tab continuous is on. After each scan BarKey waits for a reliably identified different field before scanning again.</string>
     <string name="auto_enter_off">Auto Enter</string>
     <string name="auto_enter_once">Enter ×1</string>
     <string name="auto_enter_continuous">∞ Enter</string>
     <string name="auto_enter_off_accessibility">Auto Enter Off. Tap to advance to Enter ×1.</string>
+    <string name="auto_enter_preview_disabled_accessibility">Auto Enter is unavailable while Preview is on. Turn Preview off to use Auto Enter.</string>
     <string name="auto_enter_once_accessibility">Auto Enter once is on. One successful scan inserts a value and performs the editor Enter action; then Auto Enter turns off.</string>
     <string name="auto_enter_continuous_accessibility">Auto Enter continuous is on. After each scan BarKey waits for a reliably identified different field before scanning again.</string>
     <string name="scan_field_used">This field has received its automatic scan. Tap this status message to Scan Again.</string>
@@ -117,7 +119,9 @@
     <string name="scan_again_accessibility">Scan Again. Allow one more automatic scan in this field.</string>
     <string name="auto_action_waiting_for_field">Waiting for a reliably identified new field. Scanning is paused.</string>
     <string name="auto_action_ready_for_field">A different field is confirmed. Continuous scanning is ready.</string>
-    <string name="auto_action_context_changed">The editor changed before the automatic action. Scanning is paused.</string>
+    <string name="auto_action_context_changed">The barcode was inserted, but the editor changed before the automatic action could be sent. No action was sent.</string>
+    <string name="scan_suffix_failed">The scan was inserted, but the managed Tab or Enter action could not be completed. The field remains protected.</string>
+    <string name="auto_action_failed_field_changed">The scan was inserted, but the editor did not confirm the action. A different field is verified and continuous scanning is ready there.</string>
     <string name="auto_tab_navigation_failed">The scan was inserted, but the editor could not move to the next field. Automatic scanning is paused.</string>
     <string name="auto_enter_action_failed">The scan was inserted, but the editor did not accept Enter. Automatic scanning is paused.</string>
     <string name="auto_action_once_complete">Scan inserted and the one-time action was requested.</string>

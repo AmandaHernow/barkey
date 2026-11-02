@@ -15,6 +15,19 @@ import org.junit.Test
 class InputConnectionEditorTest {
     private val editor = InputConnectionEditor()
 
+    @Test fun postScanOperationGuardTurnsHostExceptionsIntoFailureResults() {
+        var reportedFailure: RuntimeException? = null
+        val failed = EditorOperationGuard.run(
+            operation = { throw IllegalStateException("host rejected operation") },
+            onFailure = { reportedFailure = it },
+        )
+
+        assertFalse(failed)
+        assertTrue(reportedFailure is IllegalStateException)
+        assertTrue(EditorOperationGuard.run(operation = { true }, onFailure = {}))
+        assertFalse(EditorOperationGuard.run(operation = { false }, onFailure = {}))
+    }
+
     @Test fun ordinaryInsertionCanBeUndone() {
         val connection = FakeEditorConnection()
         assertTrue(editor.commitScan(connection, 1L, "ABC123", true))

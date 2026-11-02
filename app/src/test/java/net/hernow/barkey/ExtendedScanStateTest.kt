@@ -461,6 +461,77 @@ class ExtendedScanStateTest {
         assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
     }
 
+    @Test fun onceActionSurvivesSameAppSessionChangeAndEndsAtWorkflowBoundaries() {
+        val gate = SingleScanGate()
+        val actions = AutomaticActionController()
+        val coordinator = ScanDeliveryCoordinator(gate, actions)
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 111))
+        assertEquals(AutomaticActionState.ONCE,
+            actions.cycle(AutomaticScanAction.TAB, false, "example.app"))
+
+        coordinator.onInputSessionFinished()
+        assertEquals(AutomaticActionState.ONCE, actions.state(AutomaticScanAction.TAB))
+        val secondField = EditorFieldKey(Any(), "example.app", 112)
+        coordinator.observeEditorContext(secondField)
+        assertEquals(AutomaticActionState.ONCE, actions.state(AutomaticScanAction.TAB))
+        // A failed insertion does not record success or consume the selected action.
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+        assertFalse(gate.isConsumed())
+        assertEquals(AutomaticActionState.ONCE, actions.state(AutomaticScanAction.TAB))
+
+        assertTrue(coordinator.recordSuccessfulInsertion(secondField))
+        actions.completeOnce()
+        assertEquals(AutomaticActionState.OFF, actions.state(AutomaticScanAction.TAB))
+
+        actions.cycle(AutomaticScanAction.ENTER, false, "example.app")
+        coordinator.onInputSessionFinished()
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "other.app", 113))
+        assertEquals(AutomaticActionState.OFF, actions.state(AutomaticScanAction.ENTER))
+
+        actions.cycle(AutomaticScanAction.ENTER, false, "other.app")
+        coordinator.onKeyboardHidden()
+        assertEquals(AutomaticActionState.OFF, actions.state(AutomaticScanAction.ENTER))
+        actions.cycle(AutomaticScanAction.ENTER, false, "other.app")
+        coordinator.reset()
+        assertEquals(AutomaticActionState.OFF, actions.state(AutomaticScanAction.ENTER))
+
+        val unknownOrigin = AutomaticActionController()
+        unknownOrigin.cycle(AutomaticScanAction.TAB, previewEnabled = false)
+        unknownOrigin.onInputSessionFinished()
+        assertEquals(AutomaticActionState.OFF, unknownOrigin.state(AutomaticScanAction.TAB))
+    }
+
+    @Test fun synchronousCommitFieldChangeConsumesOnlyTheScannedFieldAllowance() {
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val source = EditorFieldKey(Any(), "example.app", 121)
+        val destination = EditorFieldKey(Any(), "example.app", 122)
+        coordinator.observeEditorContext(source)
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+
+        // Simulate onStartInput/syncActiveEditorField occurring inside the host's commitText call.
+        coordinator.observeEditorContext(destination)
+        assertFalse(coordinator.recordSuccessfulInsertion(source))
+        assertFalse(gate.isConsumed())
+        assertTrue(coordinator.mayDeliverAutomatically(previewEnabled = false))
+
+        coordinator.observeEditorContext(source)
+        assertTrue(gate.isConsumed())
+        assertFalse(coordinator.mayDeliverAutomatically(previewEnabled = false))
+    }
+
+    @Test fun synchronousSessionFinishDuringCommitRetainsTheSourceFieldAllowance() {
+        val gate = SingleScanGate()
+        val coordinator = ScanDeliveryCoordinator(gate, AutomaticActionController())
+        val source = EditorFieldKey(Any(), "example.app", 131)
+        coordinator.observeEditorContext(source)
+        coordinator.onInputSessionFinished()
+
+        assertFalse(coordinator.recordSuccessfulInsertion(source))
+        coordinator.observeEditorContext(EditorFieldKey(Any(), "example.app", 131))
+        assertTrue(gate.isConsumed())
+    }
+
     @Test fun singleScanInputSessionRestartKeepsStableFieldAllowanceAndReleasesConnectionReference() {
         val gate = SingleScanGate()
         gate.moveTo(EditorFieldKey(Any(), "example.app", 31))

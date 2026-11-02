@@ -1510,14 +1510,17 @@ class BarcodeInputService : InputMethodService() {
     private fun renderAutomaticButton(button: Button?, action: AutomaticScanAction) {
         val state = automaticActions.state(action)
         button ?: return
+        val available = PreviewDeliveryPolicy.mayInsertAutomatically(previewEnabled)
         button.text = getString(automaticActionLabel(action, state))
-        button.contentDescription = getString(automaticActionDescription(action))
+        button.contentDescription = getString(
+            if (available) automaticActionDescription(action) else automaticActionPreviewDisabledDescription(action),
+        )
         button.isActivated = state != AutomaticActionState.OFF
         button.setBackgroundResource(if (state != AutomaticActionState.OFF) R.drawable.scan_mode_button_background else R.drawable.keyboard_button_background)
         button.backgroundTintList = null
         button.setTextColor(ContextCompat.getColorStateList(this, R.color.keyboard_button_text))
-        button.alpha = 1f
-        button.isEnabled = true
+        button.alpha = if (available) 1f else DISABLED_AUTOMATIC_BUTTON_ALPHA
+        button.isEnabled = available
     }
 
     private fun automaticActionLabel(action: AutomaticScanAction, state: AutomaticActionState): Int = when (action) {
@@ -1544,6 +1547,12 @@ class BarcodeInputService : InputMethodService() {
             AutomaticActionState.ONCE -> R.string.auto_enter_once_accessibility
             AutomaticActionState.CONTINUOUS -> R.string.auto_enter_continuous_accessibility
         }
+    }
+
+    /** Explains why the visible automatic-action controls cannot be changed during Preview. */
+    private fun automaticActionPreviewDisabledDescription(action: AutomaticScanAction): Int = when (action) {
+        AutomaticScanAction.TAB -> R.string.auto_tab_preview_disabled_accessibility
+        AutomaticScanAction.ENTER -> R.string.auto_enter_preview_disabled_accessibility
     }
 
     /** Saves the region in preview-relative coordinates and clears stale results. */
@@ -2087,15 +2096,19 @@ class BarcodeInputService : InputMethodService() {
             setStatus(R.string.scan_delivery_failed)
             return
         }
+        // commitText() can synchronously move focus in some hosts. Synchronise first, then mark
+        // only the captured source field as scanned; never charge the destination's allowance.
+        syncActiveEditorField()
         // Manual Preview insertions also consume the normal allowance; the Preview path alone
         // bypasses the blocked-field check so deliberate additional candidate taps remain valid.
-        scanDelivery.recordSuccessfulInsertion()
+        scanDelivery.recordSuccessfulInsertion(fieldKey)
         refreshUndoButton()
         val postAction = ScanPostActionPolicy.resolve(
             automaticAction = automaticActions.actionForScan(previewEnabled),
             isPreviewSelection = isPreviewSelection,
             managedSuffix = currentSuffix,
         )
+        var postActionFailureStatus: Int? = null
         when (postAction) {
             is ScanPostAction.Automatic -> executePostScanAction(
                 postAction.action,
@@ -2106,16 +2119,20 @@ class BarcodeInputService : InputMethodService() {
             )
             is ScanPostAction.ManagedSuffix -> {
                 if (isCurrentScanContext(sessionId, inputConnection, fieldKey)) {
-                    postAction.suffix.keyCode?.let { keyCode ->
-                        inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
-                        inputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
+                    val keyCode = postAction.suffix.keyCode
+                    if (keyCode != null && !sendManagedSuffix(inputConnection, keyCode)) {
+                        postActionFailureStatus = R.string.scan_suffix_failed
                     }
-                } else setStatus(R.string.auto_action_context_changed)
+                } else postActionFailureStatus = R.string.auto_action_context_changed
             }
             ScanPostAction.None -> Unit
         }
         if (postAction !is ScanPostAction.Automatic) {
-            setStatus(if (singleScanGate.isConsumed()) R.string.scan_field_used else R.string.scan_inserted)
+            setStatus(postActionFailureStatus ?: if (singleScanGate.isConsumed()) {
+                R.string.scan_field_used
+            } else {
+                R.string.scan_inserted
+            })
         }
         renderExtendedControls()
     }
@@ -2128,20 +2145,28 @@ class BarcodeInputService : InputMethodService() {
         scannedField: EditorFieldKey,
         sessionId: Long,
     ) {
-        if (state == AutomaticActionState.CONTINUOUS) automaticActions.awaitFieldChange()
         if (!isCurrentScanContext(sessionId, inputConnection, scannedField)) {
             // A host can replace its connection between insertion and the post-scan command.
-            // Never send navigation to the old target; keep continuous mode paused for safety.
+            // Never send navigation to the old target. The gate blocks ambiguous transitions.
             if (state == AutomaticActionState.ONCE) automaticActions.completeOnce()
             setStatus(R.string.auto_action_context_changed)
             renderExtendedControls()
             return
         }
+        if (state == AutomaticActionState.CONTINUOUS) automaticActions.awaitFieldChange()
         val editorConnection = AndroidEditorConnection(inputConnection)
-        val succeeded = when (action) {
-            AutomaticScanAction.TAB -> inputEditor.nextField(editorConnection, currentInputEditorInfo)
-            AutomaticScanAction.ENTER -> inputEditor.enter(editorConnection, currentInputEditorInfo)
-        }
+        // Keep the inserted barcode even when a host editor throws while handling navigation.
+        val succeeded = EditorOperationGuard.run(
+            operation = {
+                when (action) {
+                    AutomaticScanAction.TAB -> inputEditor.nextField(editorConnection, currentInputEditorInfo)
+                    AutomaticScanAction.ENTER -> inputEditor.enter(editorConnection, currentInputEditorInfo)
+                }
+            },
+            onFailure = { error ->
+                Log.w(TAG, "Input field rejected an automatic editor action (${error.javaClass.simpleName})")
+            },
+        )
         if (state == AutomaticActionState.ONCE) automaticActions.completeOnce()
 
         // An action callback may synchronously start another editor. Let the normal identity
@@ -2149,6 +2174,9 @@ class BarcodeInputService : InputMethodService() {
         syncActiveEditorField()
 
         when {
+            !succeeded && state == AutomaticActionState.CONTINUOUS &&
+                !automaticActions.isAwaitingFieldChange() && !singleScanGate.isConsumed() ->
+                setStatus(R.string.auto_action_failed_field_changed)
             !succeeded && action == AutomaticScanAction.TAB -> setStatus(R.string.auto_tab_navigation_failed)
             !succeeded && action == AutomaticScanAction.ENTER -> setStatus(R.string.auto_enter_action_failed)
             state == AutomaticActionState.ONCE -> setStatus(R.string.auto_action_once_complete)
@@ -2159,6 +2187,37 @@ class BarcodeInputService : InputMethodService() {
             }
         }
         renderExtendedControls()
+    }
+
+    /** Sends a managed key event safely and releases it if key-down completion is uncertain. */
+    private fun sendManagedSuffix(inputConnection: InputConnection, keyCode: Int): Boolean {
+        var keyDownThrew = false
+        val keyDownAccepted = EditorOperationGuard.run(
+            operation = {
+                inputConnection.sendKeyEvent(
+                    android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode),
+                )
+            },
+            onFailure = { error ->
+                keyDownThrew = true
+                Log.w(TAG, "Input field rejected a managed key-down event (${error.javaClass.simpleName})")
+            },
+        )
+        // A false return confirms no key-down was accepted, so don't send an isolated key-up that
+        // some custom editors could interpret as an action. If the call threw, its acceptance is
+        // unknown; attempt key-up once to release a possibly held key.
+        if (!keyDownAccepted && !keyDownThrew) return false
+        val keyUpAccepted = EditorOperationGuard.run(
+            operation = {
+                inputConnection.sendKeyEvent(
+                    android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode),
+                )
+            },
+            onFailure = { error ->
+                Log.w(TAG, "Input field rejected a managed key-up event (${error.javaClass.simpleName})")
+            },
+        )
+        return keyDownAccepted && keyUpAccepted
     }
 
     /** Verifies the live IME session and exact connection before a post-scan command is sent. */
@@ -2528,6 +2587,7 @@ class BarcodeInputService : InputMethodService() {
         const val TAG = "BarcodeInputService"
         const val DEFAULT_FOCUS_REGION_FRACTION = 0.8f
         const val FOCUS_MAPPING_LOG_INTERVAL_MS = 2_000L
+        const val DISABLED_AUTOMATIC_BUTTON_ALPHA = 0.55f
         val SCAN_AGAIN_STATUS_IDS = setOf(
             R.string.scan_field_used,
             R.string.focus_scan_field_used,
@@ -2536,6 +2596,8 @@ class BarcodeInputService : InputMethodService() {
             R.string.auto_enter_action_failed,
             R.string.auto_action_once_complete,
             R.string.auto_action_context_changed,
+            R.string.auto_action_failed_field_changed,
+            R.string.scan_suffix_failed,
             R.string.scan_undo_complete,
         )
     }

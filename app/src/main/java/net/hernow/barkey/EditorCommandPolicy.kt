@@ -51,3 +51,17 @@ internal object EditorCommandPolicy {
         EditorInfo.IME_ACTION_SEND,
     )
 }
+
+/** Converts host InputConnection exceptions into ordinary rejected-operation results. */
+internal object EditorOperationGuard {
+    /**
+     * Runs one editor operation and reports RuntimeException through a caller-owned safe logger.
+     * @return the operation's result, or false when the host rejected it by throwing.
+     */
+    fun run(operation: () -> Boolean, onFailure: (RuntimeException) -> Unit): Boolean = try {
+        operation()
+    } catch (error: RuntimeException) {
+        onFailure(error)
+        false
+    }
+}
