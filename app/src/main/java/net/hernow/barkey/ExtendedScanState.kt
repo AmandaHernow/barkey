@@ -63,10 +63,20 @@ internal class FocusRegionState(
     /** Reads the region together with its current callback generation. */
     fun snapshot(): Snapshot = Snapshot(region, callbacks.current())
 
-    /** Returns false without invalidating anything when layout or a drag leaves the region unchanged. */
+    /** Ignores pixel rounding when layout leaves the visible region effectively unchanged. */
     @Synchronized
-    fun update(next: FocusRegionGeometry.RectF, focusEnabled: Boolean): Boolean {
-        if (region == next) return false
+    fun update(
+        next: FocusRegionGeometry.RectF,
+        focusEnabled: Boolean,
+        toleranceX: Float = 0f,
+        toleranceY: Float = 0f,
+    ): Boolean {
+        val sameWithinTolerance =
+            kotlin.math.abs(region.left - next.left) <= toleranceX &&
+                kotlin.math.abs(region.top - next.top) <= toleranceY &&
+                kotlin.math.abs(region.right - next.right) <= toleranceX &&
+                kotlin.math.abs(region.bottom - next.bottom) <= toleranceY
+        if (region == next || sameWithinTolerance) return false
         region = next
         if (focusEnabled) {
             callbacks.advance()
@@ -287,7 +297,7 @@ internal class SingleScanGate {
     fun moveTo(next: EditorFieldKey): Boolean {
         val nextIdentity = next.reliableIdentityOrNull()
         val changed = lastReliableField != null && nextIdentity != null && lastReliableField != nextIdentity
-        if (changed) consumed = nextIdentity?.let(consumedReliableFields::contains) == true
+        if (changed) consumed = consumedReliableFields.contains(nextIdentity)
         if (nextIdentity != null) lastReliableField = nextIdentity
         currentField = next
         hasCurrentEditor = true

@@ -546,7 +546,6 @@ class BarcodeInputService : InputMethodService() {
             preview.post { refreshPreviewOutputTransform(preview, cameraRequestId) }
             if (focusEnabled && !regionChanged) {
                 invalidateScanCallbacks()
-                clearPreviewCandidates()
             }
         }
 
@@ -662,7 +661,7 @@ class BarcodeInputService : InputMethodService() {
             })
         }
         val developerSignature = TextView(this).apply {
-            text = getString(R.string.developer_signature)
+            text = getString(R.string.developer_signature, applicationVersionName())
             textSize = 10f
             typeface = Typeface.create("sans-serif", Typeface.NORMAL)
             gravity = Gravity.CENTER
@@ -1407,6 +1406,7 @@ class BarcodeInputService : InputMethodService() {
         keyboardRoot?.visibility = View.VISIBLE
     }
 
+    /** Reads the installed app version for the help panel and keyboard footer. */
     @Suppress("DEPRECATION")
     private fun applicationVersionName(): String = try {
         val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1570,7 +1570,7 @@ class BarcodeInputService : InputMethodService() {
         AutomaticScanAction.ENTER -> R.string.auto_enter_preview_disabled_accessibility
     }
 
-    /** Saves the region in preview-relative coordinates and clears stale results. */
+    /** Saves preview-relative bounds; layout rounding can use a one-pixel tolerance. */
     private fun updateFocusRegion(
         view: View,
         preview: PreviewView?,
@@ -1578,6 +1578,7 @@ class BarcodeInputService : InputMethodService() {
         top: Int = view.top,
         width: Int = view.width,
         height: Int = view.height,
+        layoutTolerancePx: Float = 0f,
     ): Boolean {
         val p = preview ?: return false
         if (p.width <= 0 || p.height <= 0 || width <= 0 || height <= 0) return false
@@ -1585,7 +1586,12 @@ class BarcodeInputService : InputMethodService() {
             FocusRegionGeometry.RectF(left.toFloat(), top.toFloat(), (left + width).toFloat(), (top + height).toFloat()),
             p.width.toFloat(), p.height.toFloat(),
         ) ?: return false
-        val changed = focusRegionState.update(next, focusEnabled)
+        val changed = focusRegionState.update(
+            next,
+            focusEnabled,
+            toleranceX = layoutTolerancePx / p.width,
+            toleranceY = layoutTolerancePx / p.height,
+        )
         if (changed && focusEnabled) {
             clearPendingResults()
             // FocusRegionState already cleared the candidate values and invalidated selection tokens.
@@ -1641,7 +1647,15 @@ class BarcodeInputService : InputMethodService() {
         lp.width = (clamped.right - clamped.left).toInt()
         lp.height = (clamped.bottom - clamped.top).toInt()
         view.layoutParams = lp
-        return updateFocusRegion(view, preview, lp.leftMargin, lp.topMargin, lp.width, lp.height)
+        return updateFocusRegion(
+            view,
+            preview,
+            lp.leftMargin,
+            lp.topMargin,
+            lp.width,
+            lp.height,
+            layoutTolerancePx = 1f,
+        )
     }
 
     /** Maps the visible Focus box into this frame's crop, rejecting stale transforms. */

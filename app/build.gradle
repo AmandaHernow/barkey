@@ -12,9 +12,9 @@ android {
     defaultConfig {
         applicationId 'net.hernow.barkey'
         minSdk = 24
-    targetSdk = 37
-        versionCode = 1
-        versionName = '1.0.0'
+        targetSdk = 37
+        versionCode = 2
+        versionName = '1.1.0'
     }
 
     // Keep Java and Kotlin bytecode targets aligned.

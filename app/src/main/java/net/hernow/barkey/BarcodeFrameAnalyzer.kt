@@ -34,10 +34,10 @@ internal class BarcodeFrameAnalyzer(
         val outcome = timing.measure {
             FrameDecodeRunner.run(image) {
                 if (!decodeAllowed) {
-                    DecodeOutcome.NotFound
+                    DecodeOutcome.Skipped
                 } else {
                     when (FrameDecodePolicy.request(candidates, focused, crop != null)) {
-                        FrameDecodeRequest.FOCUS_UNAVAILABLE -> DecodeOutcome.NotFound
+                        FrameDecodeRequest.FOCUS_UNAVAILABLE -> DecodeOutcome.Skipped
                         FrameDecodeRequest.MULTIPLE_CANDIDATES -> decoder.decodeCandidates(it, snapshot.mode, crop)
                         FrameDecodeRequest.FOCUSED_SINGLE -> decoder.decodeFocused(it, snapshot.mode, crop!!)
                         FrameDecodeRequest.NORMAL -> decoder.decode(it, snapshot.mode)
@@ -51,6 +51,7 @@ internal class BarcodeFrameAnalyzer(
                 when (outcome) {
                     is DecodeOutcome.Value, is DecodeOutcome.Values -> "decoded"
                     DecodeOutcome.NotFound -> "no barcode found in crop"
+                    DecodeOutcome.Skipped -> "frame skipped"
                     DecodeOutcome.Failure -> "decoder failed on crop"
                 },
             )
@@ -58,6 +59,7 @@ internal class BarcodeFrameAnalyzer(
         when (outcome) {
             is DecodeOutcome.Value -> onDecoded(sessionId, cameraGeneration, snapshot.generation, settings, listOf(outcome.text))
             is DecodeOutcome.Values -> onDecoded(sessionId, cameraGeneration, snapshot.generation, settings, outcome.texts)
+            DecodeOutcome.Skipped -> Unit
             DecodeOutcome.Failure -> if (reportedFailure.compareAndSet(false, true)) {
                 onFailure(sessionId, cameraGeneration, snapshot.generation, settings)
             }

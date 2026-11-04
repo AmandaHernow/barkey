@@ -22,6 +22,8 @@ internal sealed interface DecodeOutcome {
     data class Value(val text: String) : DecodeOutcome
     data class Values(val texts: List<String>) : DecodeOutcome
     data object NotFound : DecodeOutcome
+    /** The frame was skipped because scanning was temporarily unavailable. */
+    data object Skipped : DecodeOutcome
     data object Failure : DecodeOutcome
 }
 
