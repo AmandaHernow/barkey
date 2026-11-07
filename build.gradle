@@ -8,5 +8,5 @@ buildscript {
 
 plugins {
     // The app module applies the Android plugin at this version.
-    id 'com.android.application' version '9.5.0' apply false
+    id 'com.android.application' version '9.5.1' apply false
 }
